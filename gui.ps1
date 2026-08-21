@@ -75,7 +75,7 @@ function Read-Config {
 function Save-Config {
     $cfg = [ordered]@{}
     for ($i = 0; $i -lt $keyOrder.Count; $i++) {
-        $cfg[$keyOrder[$i]] = $list.GetItemChecked($i)
+        $cfg[$keyOrder[$i]] = $list.Items[$i].Checked
     }
     try {
         [System.IO.File]::WriteAllText($configPath, ($cfg | ConvertTo-Json), [System.Text.UTF8Encoding]::new($false))
@@ -117,20 +117,26 @@ $radioCore.AutoSize = $true
 $radioCore.Location = New-Object System.Drawing.Point(230, 13)
 $topPanel.Controls.Add($radioCore)
 
-# 中部:配置勾选(CheckedListBox 自带滚动,项顺序稳定)
-$list = New-Object System.Windows.Forms.CheckedListBox
-$list.CheckOnClick = $true
+# 中部:配置勾选(ListView 勾选框与文字同单元格,高 DPI 下不会被拆分裁切)
+$list = New-Object System.Windows.Forms.ListView
+$list.View = [System.Windows.Forms.View]::List
+$list.CheckBoxes = $true
+$list.FullRowSelect = $false
+$list.MultiSelect = $false
 $list.BorderStyle = [System.Windows.Forms.BorderStyle]::None
 $list.Font = New-Object System.Drawing.Font('Segoe UI', 9)
-$list.Margin = New-Object System.Windows.Forms.Padding(12)
+$list.Dock = [System.Windows.Forms.DockStyle]::Fill
 
-# 记录 索引 -> 配置键 的对应关系(添加顺序与 keyLabels.Keys 完全一致)
+# ListView 默认 List 视图宽度依最长文本,但高 DPI 下可能不足。设一个足够宽的列兜底。
+$col = $list.Columns.Add('配置项', 560)
+
+# 记录 索引 -> 配置键 的对应关系
 $keyOrder = @($keyLabels.Keys)
 foreach ($k in $keyOrder) {
-    $list.Items.Add($keyLabels[$k]) | Out-Null
-    $list.SetItemChecked($list.Items.Count - 1, $true)
+    $item = New-Object System.Windows.Forms.ListViewItem($keyLabels[$k])
+    $item.Checked = $true
+    [void]$list.Items.Add($item)
 }
-$list.Dock = [System.Windows.Forms.DockStyle]::Fill
 
 # 底部:操作按钮
 $bottomPanel = New-Object System.Windows.Forms.Panel
@@ -198,7 +204,7 @@ $btnBuild.Add_Click({
 $form.Add_Shown({
     $cfg = Read-Config
     for ($i = 0; $i -lt $keyOrder.Count; $i++) {
-        $list.SetItemChecked($i, $cfg[$keyOrder[$i]])
+        $list.Items[$i].Checked = $cfg[$keyOrder[$i]]
     }
 })
 
