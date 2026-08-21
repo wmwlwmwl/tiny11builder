@@ -31,16 +31,24 @@ Set-ExecutionPolicy Bypass -Scope Process
 ```
 > Using `-Scope Process` you keep your original policy intact as this change only lasts for the current PowerShell session. 
 
+5. **Optional** launch the GUI to freely tick which components to keep/remove, then click "Save & Start Build":
+
+```powershell
+C:/path/to/your/tiny11/gui.ps1
+```
+> The GUI writes your choices to `config.json`, which the build script reads automatically.
+> You can also edit `config.json` manually (all default to `true` = run every trimming step).
+
 6. Start the script :
 ```powershell
 C:/path/to/your/tiny11/script.ps1 -ISO <letter> -SCRATCH <letter>
 ``` 
 > You can see of the script by running the `get-help` command.
 
-6. Select the drive letter where the image is mounted (only the letter, no colon (:))
-7. Select the SKU that you want the image to be based.
-8. Sit back and relax :)
-9. When the image is completed, you will see it in the folder where the script was extracted, with the name tiny11.iso
+7. Select the drive letter where the image is mounted (only the letter, no colon (:))
+8. Select the SKU that you want the image to be based.
+9. Sit back and relax :)
+10. When the image is completed, you will see it in the folder where the script was extracted, with the name tiny11.iso
 
 ---
 
@@ -109,8 +117,8 @@ You will be asked during image creation if you want to enable .net 3.5 support!
 - ~~disabling telemetry~~ (Implemented in the 04-29-24 release!)
 - ~~more ad suppression~~ (Partially implemented in the 09-06-25 release!)
 - ~~improved language and arch detection~~ (Implemented in the 2026-08-21 release!)
-- more flexibility in what to keep and what to delete
-- maybe a GUI???
+- ~~more flexibility in what to keep and what to delete~~ (Implemented in the 2026-08-21 release! Choose freely via `config.json` or launch `gui.ps1` to pick components visually.)
+- ~~maybe a GUI???~~ (Yes! Implemented in the 2026-08-21 release as a built-in `gui.ps1` WinForms interface.)
 
 And that's pretty much it for now!
 ## ❤️ Support the Project

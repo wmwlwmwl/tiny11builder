@@ -1,0 +1,19 @@
+{
+  "apps": true,
+  "edge": true,
+  "onedrive": true,
+  "systemPackages": true,
+  "winre": true,
+  "trimWinSxS": true,
+  "disableUpdates": true,
+  "bypassRequirements": true,
+  "disableSponsoredApps": true,
+  "disableTelemetry": true,
+  "localAccount": true,
+  "disableReserves": true,
+  "disableBitLocker": true,
+  "disableChat": true,
+  "disableCopilot": true,
+  "blockWebApps": true,
+  "deleteTelemetryTasks": true
+}

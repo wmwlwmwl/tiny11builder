@@ -96,6 +96,31 @@ if (! $myWindowsPrincipal.IsInRole($adminRole))
     exit
 }
 
+#---------[ 自定义配置 ]---------
+# 读取 config.json,不存在或非法值时回退默认(全部开启)。GUI 也读写该文件。
+function Get-Tiny11Config {
+    param([string]$Path)
+    $default = @{
+        'apps'=$true;'edge'=$true;'onedrive'=$true;
+        'systemPackages'=$true;'winre'=$true;'trimWinSxS'=$true;'disableUpdates'=$true;
+        'bypassRequirements'=$true;'disableSponsoredApps'=$true;'disableTelemetry'=$true;
+        'localAccount'=$true;'disableReserves'=$true;'disableBitLocker'=$true;'disableChat'=$true;
+        'disableCopilot'=$true;'blockWebApps'=$true;'deleteTelemetryTasks'=$true
+    }
+    $cfg = @{}
+    if (Test-Path -Path $Path) {
+        try {
+            $loaded = Get-Content -Path $Path -Raw -Encoding UTF8 | ConvertFrom-Json
+            foreach ($k in $loaded.PSObject.Properties.Name) { $cfg[$k] = $loaded.$k }
+        } catch { Write-Warning "config.json 读取失败,已使用默认配置:$_" }
+    } else { Write-Warning "未找到 config.json,已使用默认配置(全部开启)。" }
+    foreach ($k in $default.Keys) {
+        if ($null -eq $cfg[$k] -or $cfg[$k] -notin $true,$false) { $cfg[$k] = $default[$k] }
+    }
+    return $cfg
+}
+$config = Get-Tiny11Config -Path "$PSScriptRoot\config.json"
+
 # 若缺少 autounattend.xml,则从官方源下载
 if (-not (Test-Path -Path "$PSScriptRoot/autounattend.xml")) {
     Invoke-RestMethod "https://raw.githubusercontent.com/ntdevlabs/tiny11builder/refs/heads/main/autounattend.xml" -OutFile "$PSScriptRoot/autounattend.xml"
@@ -190,6 +215,7 @@ if ($architecture) {
     Write-Output "未能检测到系统架构信息。"
 }
 
+if ($config.apps) {
 Write-Output "挂载完成!正在执行应用移除..."
 $packages = & 'dism' '/English' "/image:$($ScratchDisk)\scratchdir" '/Get-ProvisionedAppxPackages' |
     ForEach-Object {
@@ -262,7 +288,9 @@ $packagesToRemove = $packages | Where-Object {
 foreach ($package in $packagesToRemove) {
     & 'dism' '/English' "/image:$($ScratchDisk)\scratchdir" '/Remove-ProvisionedAppxPackage' "/PackageName:$package"
 }
+}
 
+if ($config.edge) {
 Write-Output "正在移除 Edge:"
 Remove-Item -Path "$ScratchDisk\scratchdir\Program Files (x86)\Microsoft\Edge" -Recurse -Force | Out-Null
 Remove-Item -Path "$ScratchDisk\scratchdir\Program Files (x86)\Microsoft\EdgeUpdate" -Recurse -Force | Out-Null
@@ -270,6 +298,8 @@ Remove-Item -Path "$ScratchDisk\scratchdir\Program Files (x86)\Microsoft\EdgeCor
 & 'takeown' '/f' "$ScratchDisk\scratchdir\Windows\System32\Microsoft-Edge-Webview" '/r' | Out-Null
 & 'icacls' "$ScratchDisk\scratchdir\Windows\System32\Microsoft-Edge-Webview" '/grant' "$($adminGroup.Value):(F)" '/T' '/C' | Out-Null
 Remove-Item -Path "$ScratchDisk\scratchdir\Windows\System32\Microsoft-Edge-Webview" -Recurse -Force | Out-Null
+}
+if ($config.onedrive) {
 Write-Output "正在移除 OneDrive:"
 $oneDrivePath = "$ScratchDisk\scratchdir\Windows\System32\OneDriveSetup.exe"
 if (Test-Path -Path $oneDrivePath) {
@@ -278,6 +308,7 @@ if (Test-Path -Path $oneDrivePath) {
     Remove-Item -Path $oneDrivePath -Force | Out-Null
 } else {
     Write-Output "未检测到 OneDriveSetup.exe,跳过(部分架构的原版镜像没有该文件)。"
+}
 }
 Write-Output "移除完成!"
 Start-Sleep -Seconds 2
@@ -288,6 +319,7 @@ reg load HKLM\zDEFAULT $ScratchDisk\scratchdir\Windows\System32\config\default |
 reg load HKLM\zNTUSER $ScratchDisk\scratchdir\Users\Default\ntuser.dat | Out-Null
 reg load HKLM\zSOFTWARE $ScratchDisk\scratchdir\Windows\System32\config\SOFTWARE | Out-Null
 reg load HKLM\zSYSTEM $ScratchDisk\scratchdir\Windows\System32\config\SYSTEM | Out-Null
+if ($config.bypassRequirements) {
 Write-Output "正在绕过系统要求(作用于系统镜像):"
 Set-RegistryValue 'HKLM\zDEFAULT\Control Panel\UnsupportedHardwareNotificationCache' 'SV1' 'REG_DWORD' '0'
 Set-RegistryValue 'HKLM\zDEFAULT\Control Panel\UnsupportedHardwareNotificationCache' 'SV2' 'REG_DWORD' '0'
@@ -299,6 +331,8 @@ Set-RegistryValue 'HKLM\zSYSTEM\Setup\LabConfig' 'BypassSecureBootCheck' 'REG_DW
 Set-RegistryValue 'HKLM\zSYSTEM\Setup\LabConfig' 'BypassStorageCheck' 'REG_DWORD' '1'
 Set-RegistryValue 'HKLM\zSYSTEM\Setup\LabConfig' 'BypassTPMCheck' 'REG_DWORD' '1'
 Set-RegistryValue 'HKLM\zSYSTEM\Setup\MoSetup' 'AllowUpgradesWithUnsupportedTPMOrCPU' 'REG_DWORD' '1'
+}
+if ($config.disableSponsoredApps) {
 Write-Output "正在禁用推广应用:"
 Set-RegistryValue 'HKLM\zNTUSER\SOFTWARE\Microsoft\Windows\CurrentVersion\ContentDeliveryManager' 'OemPreInstalledAppsEnabled' 'REG_DWORD' '0'
 Set-RegistryValue 'HKLM\zNTUSER\SOFTWARE\Microsoft\Windows\CurrentVersion\ContentDeliveryManager' 'PreInstalledAppsEnabled' 'REG_DWORD' '0'
@@ -323,22 +357,35 @@ Remove-RegistryValue 'HKLM\zNTUSER\Software\Microsoft\Windows\CurrentVersion\Con
 Remove-RegistryValue 'HKLM\zNTUSER\Software\Microsoft\Windows\CurrentVersion\ContentDeliveryManager\SuggestedApps'
 Set-RegistryValue 'HKLM\zSOFTWARE\Policies\Microsoft\Windows\CloudContent' 'DisableConsumerAccountStateContent' 'REG_DWORD' '1'
 Set-RegistryValue 'HKLM\zSOFTWARE\Policies\Microsoft\Windows\CloudContent' 'DisableCloudOptimizedContent' 'REG_DWORD' '1'
+}
+if ($config.localAccount) {
 Write-Output "正在启用 OOBE 本地账户:"
 Set-RegistryValue 'HKLM\zSOFTWARE\Microsoft\Windows\CurrentVersion\OOBE' 'BypassNRO' 'REG_DWORD' '1'
 Copy-Item -Path "$PSScriptRoot\autounattend.xml" -Destination "$ScratchDisk\scratchdir\Windows\System32\Sysprep\autounattend.xml" -Force | Out-Null
-
+}
+if ($config.disableReserves) {
 Write-Output "正在禁用保留空间:"
 Set-RegistryValue 'HKLM\zSOFTWARE\Microsoft\Windows\CurrentVersion\ReserveManager' 'ShippedWithReserves' 'REG_DWORD' '0'
+}
+if ($config.disableBitLocker) {
 Write-Output "正在禁用 BitLocker 设备加密"
 Set-RegistryValue 'HKLM\zSYSTEM\ControlSet001\Control\BitLocker' 'PreventDeviceEncryption' 'REG_DWORD' '1'
+}
+if ($config.disableChat) {
 Write-Output "正在禁用聊天图标:"
 Set-RegistryValue 'HKLM\zSOFTWARE\Policies\Microsoft\Windows\Windows Chat' 'ChatIcon' 'REG_DWORD' '3'
 Set-RegistryValue 'HKLM\zNTUSER\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\Advanced' 'TaskbarMn' 'REG_DWORD' '0'
+}
+if ($config.edge) {
 Write-Output "正在移除 Edge 相关注册表"
 Remove-RegistryValue "HKEY_LOCAL_MACHINE\zSOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall\Microsoft Edge"
 Remove-RegistryValue "HKEY_LOCAL_MACHINE\zSOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall\Microsoft Edge Update"
+}
+if ($config.onedrive) {
 Write-Output "正在禁用 OneDrive 文件夹备份"
 Set-RegistryValue "HKLM\zSOFTWARE\Policies\Microsoft\Windows\OneDrive" "DisableFileSyncNGSC" "REG_DWORD" "1"
+}
+if ($config.disableTelemetry) {
 Write-Output "正在禁用遥测:"
 Set-RegistryValue 'HKLM\zNTUSER\Software\Microsoft\Windows\CurrentVersion\AdvertisingInfo' 'Enabled' 'REG_DWORD' '0'
 Set-RegistryValue 'HKLM\zNTUSER\Software\Microsoft\Windows\CurrentVersion\Privacy' 'TailoredExperiencesWithDiagnosticDataEnabled' 'REG_DWORD' '0'
@@ -350,22 +397,32 @@ Set-RegistryValue 'HKLM\zNTUSER\Software\Microsoft\InputPersonalization\TrainedD
 Set-RegistryValue 'HKLM\zNTUSER\Software\Microsoft\Personalization\Settings' 'AcceptedPrivacyPolicy' 'REG_DWORD' '0'
 Set-RegistryValue 'HKLM\zSOFTWARE\Policies\Microsoft\Windows\DataCollection' 'AllowTelemetry' 'REG_DWORD' '0'
 Set-RegistryValue 'HKLM\zSYSTEM\ControlSet001\Services\dmwappushservice' 'Start' 'REG_DWORD' '4'
+}
 ## 阻止安装 DevHome 和 Outlook
+if ($config.blockWebApps) {
 Write-Output "正在阻止安装 DevHome 和 Outlook:"
 Set-RegistryValue 'HKLM\zSOFTWARE\Microsoft\Windows\CurrentVersion\WindowsUpdate\Orchestrator\UScheduler_Oobe\OutlookUpdate' 'workCompleted' 'REG_DWORD' '1'
 Set-RegistryValue 'HKLM\zSOFTWARE\Microsoft\Windows\CurrentVersion\WindowsUpdate\Orchestrator\UScheduler\OutlookUpdate' 'workCompleted' 'REG_DWORD' '1'
 Set-RegistryValue 'HKLM\zSOFTWARE\Microsoft\Windows\CurrentVersion\WindowsUpdate\Orchestrator\UScheduler\DevHomeUpdate' 'workCompleted' 'REG_DWORD' '1'
 Remove-RegistryValue 'HKLM\zSOFTWARE\Microsoft\WindowsUpdate\Orchestrator\UScheduler_Oobe\OutlookUpdate'
 Remove-RegistryValue 'HKLM\zSOFTWARE\Microsoft\WindowsUpdate\Orchestrator\UScheduler_Oobe\DevHomeUpdate'
+}
+if ($config.disableCopilot) {
 Write-Output "正在禁用 Copilot"
 Set-RegistryValue 'HKLM\zSOFTWARE\Policies\Microsoft\Windows\WindowsCopilot' 'TurnOffWindowsCopilot' 'REG_DWORD' '1'
 Set-RegistryValue 'HKLM\zSOFTWARE\Policies\Microsoft\Edge' 'HubsSidebarEnabled' 'REG_DWORD' '0'
 Set-RegistryValue 'HKLM\zSOFTWARE\Policies\Microsoft\Windows\Explorer' 'DisableSearchBoxSuggestions' 'REG_DWORD' '1'
+}
+if ($config.blockWebApps) {
 Write-Output "正在阻止安装 Teams:"
 Set-RegistryValue 'HKLM\zSOFTWARE\Policies\Microsoft\Teams' 'DisableInstallation' 'REG_DWORD' '1'
+}
+if ($config.blockWebApps) {
 Write-Output "正在阻止安装新版 Outlook:"
 Set-RegistryValue 'HKLM\zSOFTWARE\Policies\Microsoft\Windows\Windows Mail' 'PreventRun' 'REG_DWORD' '1'
+}
 
+if ($config.deleteTelemetryTasks) {
 Write-Host "正在删除计划任务定义文件..."
 $tasksPath = "$ScratchDisk\scratchdir\Windows\System32\Tasks"
 
@@ -384,6 +441,7 @@ Remove-Item -Path "$tasksPath\Microsoft\Windows\Chkdsk\Proxy" -Force -ErrorActio
 # Windows 错误报告(QueueReporting)
 Remove-Item -Path "$tasksPath\Microsoft\Windows\Windows Error Reporting\QueueReporting" -Force -ErrorAction SilentlyContinue
 Write-Host "计划任务文件已删除。"
+}
 Write-Host "正在卸载注册表..."
 reg unload HKLM\zCOMPONENTS | Out-Null
 reg unload HKLM\zDEFAULT | Out-Null
@@ -416,6 +474,7 @@ reg load HKLM\zNTUSER $ScratchDisk\scratchdir\Users\Default\ntuser.dat
 reg load HKLM\zSOFTWARE $ScratchDisk\scratchdir\Windows\System32\config\SOFTWARE
 reg load HKLM\zSYSTEM $ScratchDisk\scratchdir\Windows\System32\config\SYSTEM
 
+if ($config.bypassRequirements) {
 Write-Output "正在绕过系统要求(作用于安装镜像):"
 Set-RegistryValue 'HKLM\zDEFAULT\Control Panel\UnsupportedHardwareNotificationCache' 'SV1' 'REG_DWORD' '0'
 Set-RegistryValue 'HKLM\zDEFAULT\Control Panel\UnsupportedHardwareNotificationCache' 'SV2' 'REG_DWORD' '0'
@@ -427,6 +486,7 @@ Set-RegistryValue 'HKLM\zSYSTEM\Setup\LabConfig' 'BypassSecureBootCheck' 'REG_DW
 Set-RegistryValue 'HKLM\zSYSTEM\Setup\LabConfig' 'BypassStorageCheck' 'REG_DWORD' '1'
 Set-RegistryValue 'HKLM\zSYSTEM\Setup\LabConfig' 'BypassTPMCheck' 'REG_DWORD' '1'
 Set-RegistryValue 'HKLM\zSYSTEM\Setup\MoSetup' 'AllowUpgradesWithUnsupportedTPMOrCPU' 'REG_DWORD' '1'
+}
 Write-Output "调整完成!"
 
 Write-Output "正在卸载注册表..."
