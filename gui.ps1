@@ -89,9 +89,9 @@ function Save-Config {
 #---------[ 界面 ]---------
 $form = New-Object System.Windows.Forms.Form
 $form.Text = 'tiny11 builder 图形界面'
-$form.Size = New-Object System.Drawing.Size(460, 680)
+$form.Size = New-Object System.Drawing.Size(600, 700)
 $form.StartPosition = [System.Windows.Forms.FormStartPosition]::CenterScreen
-$form.MinimumSize = New-Object System.Drawing.Size(420, 500)
+$form.MinimumSize = New-Object System.Drawing.Size(520, 520)
 
 # 顶部:构建脚本选择
 $topPanel = New-Object System.Windows.Forms.Panel
@@ -121,6 +121,8 @@ $topPanel.Controls.Add($radioCore)
 $list = New-Object System.Windows.Forms.CheckedListBox
 $list.CheckOnClick = $true
 $list.BorderStyle = [System.Windows.Forms.BorderStyle]::None
+$list.Font = New-Object System.Drawing.Font('Segoe UI', 9)
+$list.Margin = New-Object System.Windows.Forms.Padding(12)
 
 # 记录 索引 -> 配置键 的对应关系(添加顺序与 keyLabels.Keys 完全一致)
 $keyOrder = @($keyLabels.Keys)
@@ -151,9 +153,10 @@ $bottomPanel.Controls.Add($btnBuild)
 
 $tip = New-Object System.Windows.Forms.Label
 $tip.Text = '提示:构建脚本会自动提权到新的管理员窗口,实时日志将在那里显示。'
-$tip.AutoSize = $true
+$tip.Size = New-Object System.Drawing.Size(300, 16)
+$tip.AutoSize = $false
 $tip.ForeColor = [System.Drawing.Color]::Gray
-$tip.Location = New-Object System.Drawing.Point(285, 20)
+$tip.Location = New-Object System.Drawing.Point(290, 20)
 $bottomPanel.Controls.Add($tip)
 
 #---------[ 行为 ]---------
