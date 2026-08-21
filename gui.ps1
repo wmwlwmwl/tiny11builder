@@ -133,13 +133,13 @@ foreach ($k in $keyOrder) {
 $btnSave = New-Object System.Windows.Forms.Button
 $btnSave.Text = '保存配置'
 $btnSave.Size = New-Object System.Drawing.Size(110, 32)
-$btnSave.Location = New-Object System.Drawing.Point(20, $y + 14)
+$btnSave.Location = New-Object System.Drawing.Point(20, ($y + 14))
 $form.Controls.Add($btnSave)
 
 $btnBuild = New-Object System.Windows.Forms.Button
 $btnBuild.Text = '保存并启动构建'
 $btnBuild.Size = New-Object System.Drawing.Size(140, 32)
-$btnBuild.Location = New-Object System.Drawing.Point(140, $y + 14)
+$btnBuild.Location = New-Object System.Drawing.Point(140, ($y + 14))
 $form.Controls.Add($btnBuild)
 
 $tip = New-Object System.Windows.Forms.Label
