@@ -126,11 +126,14 @@ $form.Controls.Add($lblScript)
 $checkbox = @{}
 $keyOrder = @($keyLabels.Keys)
 $y = 52
+$measureFont = New-Object System.Drawing.Font($form.Font.FontFamily, $form.Font.Size + 6)  # 预留 DPI 缩放余量
 foreach ($k in $keyOrder) {
     $cb = New-Object System.Windows.Forms.CheckBox
     $cb.Text = $keyLabels[$k]
     $cb.AutoSize = $false
-    $cb.Size = New-Object System.Drawing.Size(420, 24)
+    # 宽度按文本实测 + 圆圈/边距,避免 DPI 缩放后文字被横向裁切
+    $textW = [System.Windows.Forms.TextRenderer]::MeasureText($cb.Text, $measureFont).Width
+    $cb.Size = New-Object System.Drawing.Size(($textW + 46), 24)
     $cb.TextAlign = [System.Drawing.ContentAlignment]::MiddleLeft
     $cb.Location = New-Object System.Drawing.Point(20, $y)
     $cb.Checked = $true
