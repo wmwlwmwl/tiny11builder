@@ -74,6 +74,14 @@ C:/你的脚本路径/script.ps1 -ISO 挂载盘盘符 -SCRATCH 临时盘盘符
 | --- | --- |
 | - Clipchamp（视频编辑器）   - 新闻   - 天气   - Xbox   - 帮助   - 入门   - Office Hub   - 纸牌游戏   - 人脉   - PowerAutomate   - ToDo 待办   - 闹钟   - 邮件和日历   - 反馈中心   - 地图   - 录音机   - 你的手机   - 媒体播放器   - 快速助手   - Internet Explorer   - 平板电脑数学组件   - Edge浏览器   - OneDrive | 包含常规 tiny11 的全部删除项，额外移除：   - Windows 组件存储库（WinSxS）   - Windows Defender（仅禁用，可手动重新开启）   - Windows 更新（缺少 WinSxS 导致更新无法工作，强行开启会造成系统故障）   - Windows 恢复环境 WinRE |
 
+**移除预装应用（`apps` 开关）具体包含**（通过 DISM 按包前缀匹配移除）：
+
+- **办公**：Office Hub（Office 中心）、OneNote、Outlook for Windows、Power Automate、Dev Home、Copilot
+- **沟通/媒体**：Teams、微软商店版 Teams、Skype、Xbox 全家桶（TCUI/App/GameOverlay/GamingOverlay/IdentityProvider/SpeechToText）、Zune 音乐/视频、Clipchamp（视频编辑器）、3D 查看器、画图
+- **生活工具**：闹钟、相机、地图、录音机、便签（StickyNotes）、待办（Todos）、钱包（Wallet）、人脉
+- **资讯/辅助**：Bing 新闻/搜索/天气、获取帮助（GetHelp）、入门（GetStarted）、反馈中心（Feedback Hub）、跨设备（CrossDevice）
+- **系统相关**：Windows 邮件与应用（communicationsapps）、Windows Terminal、MSPaint 等
+
 > 
 > 注意：**tiny11 core 制作完成后无法恢复被删除的系统功能！**
 > 构建镜像过程中会询问你是否开启 .NET 3.5 支持。

@@ -103,6 +103,14 @@ C:/path/to/your/tiny11/script.ps1 -ISO <letter> -SCRATCH <letter>
 Keep in mind that **you cannot add back features in tiny11 core**! <br>
 You will be asked during image creation if you want to enable .net 3.5 support!
 
+**What the "remove preinstalled apps" (`apps`) option includes** (removed by matching package prefixes via DISM):
+
+- **Office/productivity**: Office Hub, OneNote, Outlook for Windows, Power Automate, Dev Home, Copilot
+- **Social/media**: Teams, Store Teams, Skype, the full Xbox set (TCUI/App/GameOverlay/GamingOverlay/IdentityProvider/SpeechToText), Zune Music/Video, Clipchamp, 3D Viewer, Paint
+- **Daily tools**: Alarms, Camera, Maps, Sound Recorder, StickyNotes, Todos, Wallet, People
+- **News/assist**: Bing News/Search/Weather, GetHelp, GetStarted, Feedback Hub, CrossDevice
+- **System-related**: Windows Mail & Calendar (communicationsapps), Windows Terminal, MSPaint, etc.
+
 ---
 
 ## Known issues:
