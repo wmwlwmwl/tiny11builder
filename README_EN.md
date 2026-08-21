@@ -118,7 +118,7 @@ You will be asked during image creation if you want to enable .net 3.5 support!
 | `apps` | Remove preinstalled apps (see list above) | both |
 | `edge` | Remove Edge and its remnants | both |
 | `onedrive` | Remove OneDrive and disable backup | both |
-| `systemPackages` | Remove system packages | core only |
+| `systemPackages` | Remove system packages (incl. Windows Defender—only disabled, can be re-enabled; also plain IE, Media Player, WordPad, etc.) | core only |
 | `winre` | Remove WinRE recovery environment | core only |
 | `trimWinSxS` | Trim WinSxS component store | core only |
 | `disableUpdates` | Disable Windows Update | core only |

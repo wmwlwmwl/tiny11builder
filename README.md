@@ -89,7 +89,7 @@ C:/你的脚本路径/script.ps1 -ISO 挂载盘盘符 -SCRATCH 临时盘盘符
 | `apps` | 移除预装应用（见上方清单） | 两个版本 |
 | `edge` | 移除 Edge 及残留 | 两个版本 |
 | `onedrive` | 移除 OneDrive 及禁用备份 | 两个版本 |
-| `systemPackages` | 移除系统包 | 仅核心版 |
+| `systemPackages` | 移除系统包（含 Windows Defender，仅禁用、可手动重开；含 Internet Explorer、媒体播放器、写字板等） | 仅核心版 |
 | `winre` | 移除恢复环境 WinRE | 仅核心版 |
 | `trimWinSxS` | 精简 WinSxS 组件库 | 仅核心版 |
 | `disableUpdates` | 禁用 Windows 更新 | 仅核心版 |
