@@ -17,6 +17,20 @@
 Add-Type -AssemblyName System.Windows.Forms
 Add-Type -AssemblyName System.Drawing
 
+# 高分辨率(DPI>100%)下若不感知缩放,WinForms 控件行高/布局会被错误裁切
+# (症状:勾选框只显示一半、首项不可见)。这里在创建任何窗口前声明 PerMonitorV2 感知。
+# PS 5.1 无 Application.SetHighDpiMode(.NET Core API),故用 P/Invoke。
+Add-Type -TypeDefinition @'
+using System;
+using System.Runtime.InteropServices;
+public static class DpiFix {
+    [DllImport("user32.dll")]
+    public static extern bool SetProcessDpiAwarenessContext(IntPtr dpiAwarenessContext);
+}
+'@
+# -4 = PROCESS_PER_MONITOR_DPI_AWARE_V2
+[DpiFix]::SetProcessDpiAwarenessContext([IntPtr]::new(-4)) | Out-Null
+
 $root = $PSScriptRoot
 $configPath = Join-Path $root 'config.json'
 
