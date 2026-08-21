@@ -1,122 +1,97 @@
 # tiny11builder
-*Scripts to build a trimmed-down Windows 11 image - now in **PowerShell**!*
 
-## Introduction :
-Tiny11 builder, now completely overhauled. <br> After more than a year (for which I am so sorry) of no updates, tiny11 builder is now a much more complete and flexible solution - one script fits all. Also, it is a steppingstone for an even more fleshed-out solution.
+**用于制作精简版 Windows 11 镜像的脚本 —— 现已改用 PowerShell！**
 
-You can now use it on ANY Windows 11 release (not just a specific build), as well as ANY language or architecture.
-This is made possible thanks to the much-improved scripting capabilities of PowerShell, compared to the older Batch release.
+## 简介
 
-This is a script created to automate the build of a streamlined Windows 11 image, similar to tiny10.
-The script has also been updated to use DISM's recovery compression, resulting in a much smaller final ISO size, and no utilities from external sources. The only other executable included is **oscdimg.exe**, which is provided in the Windows ADK and it is used to create bootable ISO images. 
-Also included is an unattended answer file, which is used to bypass the Microsoft Account on OOBE and to deploy the image with the `/compact` flag.
-It's open-source, **so feel free to add or remove anything you want!** Feedback is also much appreciated.
+tiny11 builder 已经完成全面重构。
+历经一年多未更新（对此我深表歉意），tiny11 builder 如今已是一套更完整、灵活的解决方案，**一个脚本适配全部场景**。同时，这也是后续开发更完善版本的铺垫。
 
-Also, for the very first time, **introducing tiny11 core builder**! A more powerful script, designed for a quick and dirty development testbed. Just the bare minimum, none of the fluff. 
-This script generates a significantly reduced Windows 11 image. However, **it's not suitable for regular use due to its lack of serviceability - you can't add languages, updates, or features post-creation**. tiny11 Core is not a full Windows 11 substitute but a rapid testing or development tool, potentially useful for VM environments.
+现在该工具可以适配**任意 Windows 11 正式版本**（不再局限于特定内部版本），同时支持任意语言与处理器架构。
+这得益于 PowerShell 相比旧版批处理脚本大幅提升的脚本处理能力。
+
+该脚本用于自动构建一套精简的 Windows 11 镜像，效果类似 tiny10。
+脚本现已使用 DISM 的恢复压缩功能，最终 ISO 文件体积大幅缩小，且不依赖任何第三方外部工具。唯一附带的可执行文件是 **oscdimg.exe**，该程序来自 Windows ADK，用于生成可启动的 ISO 镜像。
+
+包内还包含一份无人值守应答文件，可以在系统初始化界面（OOBE）绕过微软账户登录，并且以 `/compact` 压缩模式部署系统。
+
+本项目开源，**欢迎自行增删修改功能！** 也非常欢迎反馈意见。
+
+本次首次推出 **tiny11 core builder**！一套功能更强的脚本，专为快速简易的开发测试环境打造。仅保留最基础组件，剔除所有冗余内容。
+
+该脚本会生成一个极致精简的 Windows 11 镜像。但**不适合日常使用**：它丧失系统维护能力——镜像制作完成后，无法追加语言包、安装系统更新、添加系统功能。tiny11 Core 不能作为完整 Windows 11 的替代品，它主要用于快速测试或者开发场景，虚拟机环境下尤为实用。
 
 ---
 
-## ⚠️ Script versions:
-- **tiny11maker.ps1** : The regular script, which removes a lot of bloat but keeps the system serviceable. You can add languages, updates, and features post-creation. This is the recommended script for regular use.
-- ⚠️ **tiny11coremaker.ps1** : The core script, which removes even more bloat but also removes the ability to service the image. You cannot add languages, updates, or features post-creation. This is recommended for quick testing or development use.
+## ⚠️ 脚本版本说明
 
-## Instructions:
-1. Download Windows 11 from the [Microsoft website](https://www.microsoft.com/software-download/windows11) or [Rufus](https://github.com/pbatard/rufus)
-2. Mount the downloaded ISO image using Windows Explorer.
-3. Open **PowerShell 5.1** as Administrator. 
-5. Change the script execution policy :
-```powershell
+- **tiny11maker.ps1**：常规版本脚本。移除大量预装臃肿应用，但保留系统维护能力。制作完成后仍可以安装语言包、系统更新、添加系统组件。**推荐普通用户使用。**
+- ⚠️ **tiny11coremaker.ps1**：核心精简版脚本。删除更多组件，但同时破坏镜像的系统维护能力。制作完成后无法添加语言、更新系统、开启新功能。适合快速测试、开发调试。
+
+## 使用步骤
+
+1. 从[微软官网](https://www.microsoft.com/software-download/windows11)或 Rufus 项目下载 Windows 11 原版镜像
+2. 使用资源管理器挂载下载好的 ISO 文件
+3. 以管理员身份打开 **PowerShell 5.1**
+4. 修改脚本执行策略：
+
+```
 Set-ExecutionPolicy Bypass -Scope Process
 ```
-> Using `-Scope Process` you keep your original policy intact as this change only lasts for the current PowerShell session. 
 
-6. Start the script :
-```powershell
-C:/path/to/your/tiny11/script.ps1 -ISO <letter> -SCRATCH <letter>
-``` 
-> You can see of the script by running the `get-help` command.
+> 
+> 使用 `-Scope Process` 参数只会对当前 PowerShell 会话生效，不会改动系统原有执行策略。
 
-6. Select the drive letter where the image is mounted (only the letter, no colon (:))
-7. Select the SKU that you want the image to be based.
-8. Sit back and relax :)
-9. When the image is completed, you will see it in the folder where the script was extracted, with the name tiny11.iso
+5. 运行脚本：
 
----
+```
+C:/你的脚本路径/script.ps1 -ISO 挂载盘盘符 -SCRATCH 临时盘盘符
+```
 
-## What is removed:
-<table>
-  <tbody>
-    <tr>
-      <th>Tiny11maker</th>
-      <th>Tiny11coremaker</th>
-    </tr>
-    <tr>
-      <td>
-        <ul>
-          <li>Clipchamp</li>
-          <li>News</li>
-          <li>Weather</li>
-          <li>Xbox</li>
-          <li>GetHelp</li>
-          <li>GetStarted</li>
-          <li>Office Hub</li>
-          <li>Solitaire</li>
-          <li>PeopleApp</li>
-          <li>PowerAutomate</li>
-          <li>ToDo</li>
-          <li>Alarms</li>
-          <li>Mail and Calendar</li>
-          <li>Feedback Hub</li>
-          <li>Maps</li>
-          <li>Sound Recorder</li>
-          <li>Your Phone</li>
-          <li>Media Player</li>
-          <li>QuickAssist</li>
-          <li>Internet Explorer</li>
-          <li>Tablet PC Math</li>
-          <li>Edge</li>
-          <li>OneDrive</li>
-        </ul>
-      </td>
-      <td>
-        <ul>
-          <li>all from regular tiny +</li>
-          <li>Windows Component Store (WinSxS)</li>
-          <li>Windows Defender (only disabled, can be enabled back if needed)</li>
-          <li>Windows Update (wouldn't work without WinSxS, enabling it would put the system in a state of failure)</li>
-          <li>WinRE</li>
-        </ul>
-      </td>
-    </tr>
-  </tbody>
-</table>
+> 
+> 执行 `get‑help` 命令查看脚本完整帮助文档。
 
-Keep in mind that **you cannot add back features in tiny11 core**! <br>
-You will be asked during image creation if you want to enable .net 3.5 support!
+6. 选择镜像挂载的驱动器盘符（**只输入字母，不要带冒号 :**）
+7. 选择想要制作的系统版本（SKU）
+8. 静静等待构建完成 :)
+9. 构建结束后，`tiny11.iso` 会生成在脚本解压目录下。
 
 ---
 
-## Known issues:
-- Although Edge is removed, there are some remnants in the Settings, but the app in itself is deleted. 
-- You might have to update Winget before being able to install any apps, using Microsoft Store.
-- Outlook and Dev Home might reappear after some time. This is an ongoing battle, though the latest script update tries to prevent this more aggressively.
-- If you are using this script on arm64, you might see a glimpse of an error while running the script. This is caused by the fact that the arm64 image doesn't have OneDriveSetup.exe included in the System32 folder.
+## 组件移除清单
+
+| tiny11maker（常规版） | tiny11coremaker（核心精简版） |
+| --- | --- |
+| - Clipchamp（视频编辑器）   - 新闻   - 天气   - Xbox   - 帮助   - 入门   - Office Hub   - 纸牌游戏   - 人脉   - PowerAutomate   - ToDo 待办   - 闹钟   - 邮件和日历   - 反馈中心   - 地图   - 录音机   - 你的手机   - 媒体播放器   - 快速助手   - Internet Explorer   - 平板电脑数学组件   - Edge浏览器   - OneDrive | 包含常规 tiny11 的全部删除项，额外移除：   - Windows 组件存储库（WinSxS）   - Windows Defender（仅禁用，可手动重新开启）   - Windows 更新（缺少 WinSxS 导致更新无法工作，强行开启会造成系统故障）   - Windows 恢复环境 WinRE |
+
+> 
+> 注意：**tiny11 core 制作完成后无法恢复被删除的系统功能！**
+> 构建镜像过程中会询问你是否开启 .NET 3.5 支持。
 
 ---
 
-## Features to be implemented:
-- ~~disabling telemetry~~ (Implemented in the 04-29-24 release!)
-- ~~more ad suppression~~ (Partially implemented in the 09-06-25 release!)
-- improved language and arch detection
-- more flexibility in what to keep and what to delete
-- maybe a GUI???
+## 已知问题
 
-And that's pretty much it for now!
-## ❤️ Support the Project
+1. 虽然 Edge 浏览器已被删除，但设置界面仍会残留部分相关条目，程序本体已经被移除。
+2. 使用微软商店安装应用前，可能需要手动更新 Winget。
+3. Outlook 和 Dev Home 有时会自动重新安装，项目组正在处理该问题；最新版脚本已经加强限制来缓解该现象。
+4. ~~在 ARM64 平台运行脚本时，会短暂弹出报错。原因是 ARM64 原版镜像的 System32 目录不存在 OneDriveSetup.exe。~~（已于 2026-08-21 版本修复：加入文件存在性判断，缺失时跳过。）
 
-If this project has helped you, please consider showing your support! A small donation helps me dedicate more time to projects like this.
-Thank you!
+## 待实现功能
 
-**[Patreon](http://patreon.com/ntdev) | [PayPal](http://paypal.me/ntdev2) | [Ko-fi](http://ko-fi.com/ntdev)**
-Thanks for trying it and let me know how you like it!
+- ~~关闭遥测~~（已于2024‑04‑29版本完成）
+- ~~增强广告拦截~~（2025‑09‑06 版本已部分实现）
+- ~~优化语言、处理器架构识别逻辑~~（已于 2026-08-21 版本完成）
+- 支持自定义配置，自由选择保留/删除组件
+- 未来可能开发图形界面（GUI）
+
+以上就是目前全部内容！
+
+## ❤️ 支持本项目
+
+如果这个项目对你有帮助，欢迎给予支持。小额捐助可以让作者投入更多时间开发这类工具。
+
+感谢！
+[Patreon](http://patreon.com/ntdev) | [PayPal](http://paypal.me/ntdev2) | [Ko‑fi](http://ko%E2%80%91fi.com/ntdev)
+
+感谢体验，欢迎反馈你的使用感受！

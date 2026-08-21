@@ -1,17 +1,17 @@
-<#
+﻿<#
 .SYNOPSIS
-    Scripts to build a trimmed-down Windows 11 image.
+    用于构建精简版 Windows 11 镜像的脚本。
 
 .DESCRIPTION
-    This is a script created to automate the build of a streamlined Windows 11 image, similar to tiny10.
-    My main goal is to use only Microsoft utilities like DISM, and no utilities from external sources.
-    The only executable included is oscdimg.exe, which is provided in the Windows ADK and it is used to create bootable ISO images.
+    这是为自动化构建精简版 Windows 11 镜像(类似 tiny10)而创建的脚本。
+    核心目标:只使用微软官方工具(如 DISM),不依赖任何外部三方工具。
+    唯一的可执行文件是 oscdimg.exe,它来自 Windows ADK,用于制作可引导 ISO 镜像。
 
 .PARAMETER ISO
-    Drive letter given to the mounted iso (eg: E)
+    已挂载 iso 的盘符(如: E)
 
 .PARAMETER SCRATCH
-    Drive letter of the desired scratch disk (eg: D)
+    工作分区盘符(如: D)
 
 .EXAMPLE
     .\tiny11maker.ps1 E D
@@ -19,15 +19,15 @@
     .\tiny11maker.ps1 -SCRATCH D -ISO E
     .\tiny11maker.ps1
 
-    *If you ordinal parameters the first one must be the mounted iso. The second is the scratch drive.
-    prefer the use of full named parameter (eg: "-ISO") as you can put in the order you want.
+    * 若使用位置参数,第一个必须是已挂载的 iso,第二个是工作分区盘符。
+    建议使用完整命名参数(如 "-ISO"),这样可任意调整顺序。
 
 .NOTES
-    Auteur: ntdevlabs
-    Date: 09-07-25
+    作者: ntdevlabs
+    日期: 09-07-25
 #>
 
-#---------[ Parameters ]---------#
+#---------[ 参数 ]---------#
 param (
     [ValidatePattern('^[c-zC-Z]$')][string]$ISO,
     [ValidatePattern('^[c-zC-Z]$')][string]$SCRATCH
@@ -39,7 +39,7 @@ if (-not $SCRATCH) {
     $ScratchDisk = $SCRATCH + ":"
 }
 
-#---------[ Functions ]---------#
+#---------[ 函数 ]---------#
 function Set-RegistryValue {
     param (
         [string]$path,
@@ -49,9 +49,9 @@ function Set-RegistryValue {
     )
     try {
         & 'reg' 'add' $path '/v' $name '/t' $type '/d' $value '/f' | Out-Null
-        Write-Output "Set registry value: $path\$name"
+        Write-Output "已设置注册表值: $path\$name"
     } catch {
-        Write-Output "Error setting registry value: $_"
+        Write-Output "设置注册表值失败: $_"
     }
 }
 
@@ -61,26 +61,26 @@ function Remove-RegistryValue {
 	)
 	try {
 		& 'reg' 'delete' $path '/f' | Out-Null
-		Write-Output "Removed registry value: $path"
+		Write-Output "已删除注册表值: $path"
 	} catch {
-		Write-Output "Error removing registry value: $_"
+		Write-Output "删除注册表值失败: $_"
 	}
 }
 
-#---------[ Execution ]---------#
-# Check if PowerShell execution is restricted
+#---------[ 执行 ]---------#
+# 检查 PowerShell 执行策略
 if ((Get-ExecutionPolicy) -eq 'Restricted') {
-    Write-Output "Your current PowerShell Execution Policy is set to Restricted, which prevents scripts from running. Do you want to change it to RemoteSigned? (yes/no)"
+    Write-Output "当前 PowerShell 执行策略为 Restricted,无法运行脚本。是否改为 RemoteSigned?(yes/no)"
     $response = Read-Host
     if ($response -eq 'yes') {
         Set-ExecutionPolicy RemoteSigned -Scope CurrentUser -Confirm:$false
     } else {
-        Write-Output "The script cannot be run without changing the execution policy. Exiting..."
+        Write-Output "不修改执行策略则无法运行脚本,正在退出..."
         exit
     }
 }
 
-# Check and run the script as admin if required
+# 检查权限,非管理员则提权重启
 $adminSID = New-Object System.Security.Principal.SecurityIdentifier("S-1-5-32-544")
 $adminGroup = $adminSID.Translate([System.Security.Principal.NTAccount])
 $myWindowsID=[System.Security.Principal.WindowsIdentity]::GetCurrent()
@@ -88,7 +88,7 @@ $myWindowsPrincipal=new-object System.Security.Principal.WindowsPrincipal($myWin
 $adminRole=[System.Security.Principal.WindowsBuiltInRole]::Administrator
 if (! $myWindowsPrincipal.IsInRole($adminRole))
 {
-    Write-Output "Restarting Tiny11 image creator as admin in a new window, you can close this one."
+    Write-Output "正在以管理员身份在新窗口重启 Tiny11 构建工具,当前窗口可关闭。"
     $newProcess = new-object System.Diagnostics.ProcessStartInfo "PowerShell";
     $newProcess.Arguments = $myInvocation.MyCommand.Definition;
     $newProcess.Verb = "runas";
@@ -96,105 +96,101 @@ if (! $myWindowsPrincipal.IsInRole($adminRole))
     exit
 }
 
+# 若缺少 autounattend.xml,则从官方源下载
 if (-not (Test-Path -Path "$PSScriptRoot/autounattend.xml")) {
     Invoke-RestMethod "https://raw.githubusercontent.com/ntdevlabs/tiny11builder/refs/heads/main/autounattend.xml" -OutFile "$PSScriptRoot/autounattend.xml"
 }
 
-# Start the transcript and prepare the window
+# 开始记录日志并准备窗口
 Start-Transcript -Path "$PSScriptRoot\tiny11_$(get-date -f yyyyMMdd_HHmms).log"
 
-$Host.UI.RawUI.WindowTitle = "Tiny11 image creator"
+$Host.UI.RawUI.WindowTitle = "Tiny11 镜像构建工具"
 Clear-Host
-Write-Output "Welcome to the tiny11 image creator! Release: 09-07-25"
+Write-Output "欢迎使用 tiny11 镜像构建工具!版本: 09-07-25"
 
 $hostArchitecture = $Env:PROCESSOR_ARCHITECTURE
 New-Item -ItemType Directory -Force -Path "$ScratchDisk\tiny11\sources" | Out-Null
 do {
     if (-not $ISO) {
-        $DriveLetter = Read-Host "Please enter the drive letter for the Windows 11 image"
+        $DriveLetter = Read-Host "请输入 Windows 11 镜像所在盘符"
     } else {
         $DriveLetter = $ISO
     }
     if ($DriveLetter -match '^[c-zC-Z]$') {
         $DriveLetter = $DriveLetter + ":"
-        Write-Output "Drive letter set to $DriveLetter"
+        Write-Output "盘符已设为 $DriveLetter"
     } else {
-        Write-Output "Invalid drive letter. Please enter a letter between C and Z."
+        Write-Output "无效盘符。请输入 C 到 Z 之间的字母。"
     }
 } while ($DriveLetter -notmatch '^[c-zC-Z]:$')
 
 if ((Test-Path "$DriveLetter\sources\boot.wim") -eq $false -or (Test-Path "$DriveLetter\sources\install.wim") -eq $false) {
     if ((Test-Path "$DriveLetter\sources\install.esd") -eq $true) {
-        Write-Output "Found install.esd, converting to install.wim..."
+        Write-Output "检测到 install.esd,正在转换为 install.wim..."
         Get-WindowsImage -ImagePath $DriveLetter\sources\install.esd
-        $index = Read-Host "Please enter the image index"
+        $index = Read-Host "请输入镜像索引(Image Index)"
         Write-Output ' '
-        Write-Output 'Converting install.esd to install.wim. This may take a while...'
+        Write-Output '正在将 install.esd 转换为 install.wim,可能需要较长时间...'
         Export-WindowsImage -SourceImagePath $DriveLetter\sources\install.esd -SourceIndex $index -DestinationImagePath $ScratchDisk\tiny11\sources\install.wim -Compressiontype Maximum -CheckIntegrity
     } else {
-        Write-Output "Can't find Windows OS Installation files in the specified Drive Letter.."
-        Write-Output "Please enter the correct DVD Drive Letter.."
+        Write-Output "在指定盘符中未找到 Windows 系统安装文件。"
+        Write-Output "请确认输入了正确的 DVD 盘符。"
         exit
     }
 }
 
-Write-Output "Copying Windows image..."
+Write-Output "正在复制 Windows 镜像..."
 Copy-Item -Path "$DriveLetter\*" -Destination "$ScratchDisk\tiny11" -Recurse -Force | Out-Null
 Set-ItemProperty -Path "$ScratchDisk\tiny11\sources\install.esd" -Name IsReadOnly -Value $false > $null 2>&1
 Remove-Item "$ScratchDisk\tiny11\sources\install.esd" > $null 2>&1
-Write-Output "Copy complete!"
+Write-Output "复制完成!"
 Start-Sleep -Seconds 2
 Clear-Host
-Write-Output "Getting image information:"
+Write-Output "正在获取镜像信息:"
 $ImagesIndex = (Get-WindowsImage -ImagePath $ScratchDisk\tiny11\sources\install.wim).ImageIndex
 while ($ImagesIndex -notcontains $index) {
     Get-WindowsImage -ImagePath $ScratchDisk\tiny11\sources\install.wim
-    $index = Read-Host "Please enter the image index"
+    $index = Read-Host "请输入镜像索引(Image Index)"
 }
-Write-Output "Mounting Windows image. This may take a while."
+Write-Output "正在挂载 Windows 镜像,可能需要较长时间。"
 $wimFilePath = "$ScratchDisk\tiny11\sources\install.wim"
 & takeown "/F" $wimFilePath
 & icacls $wimFilePath "/grant" "$($adminGroup.Value):(F)"
 try {
     Set-ItemProperty -Path $wimFilePath -Name IsReadOnly -Value $false -ErrorAction Stop
 } catch {
-    # This block will catch the error and suppress it.
-	Write-Error "$wimFilePath not found"
+    # 忽略只读属性设置失败,继续执行
+	Write-Error "$wimFilePath 未找到"
 }
 New-Item -ItemType Directory -Force -Path "$ScratchDisk\scratchdir" > $null
 Mount-WindowsImage -ImagePath $ScratchDisk\tiny11\sources\install.wim -Index $index -Path $ScratchDisk\scratchdir
 
 $imageIntl = & dism /English /Get-Intl "/Image:$($ScratchDisk)\scratchdir"
-$languageLine = $imageIntl -split '\n' | Where-Object { $_ -match 'Default system UI language : ([a-zA-Z]{2}-[a-zA-Z]{2})' }
+$languageCode = $null
+foreach ($line in ($imageIntl -split '\r?\n')) {
+    if ($line -match 'Default system UI language\s*:\s*([a-zA-Z]{2}-[a-zA-Z]{2})') { $languageCode = $Matches[1]; break }
+}
 
-if ($languageLine) {
-    $languageCode = $Matches[1]
-    Write-Output "Default system UI language code: $languageCode"
+if ($languageCode) {
+    Write-Output "默认系统 UI 语言代码: $languageCode"
 } else {
-    Write-Output "Default system UI language code not found."
+    Write-Output "未能检测到默认系统 UI 语言代码。"
 }
 
 $imageInfo = & 'dism' '/English' '/Get-WimInfo' "/wimFile:$($ScratchDisk)\tiny11\sources\install.wim" "/index:$index"
-$lines = $imageInfo -split '\r?\n'
+$architecture = $null
+foreach ($line in ($imageInfo -split '\r?\n')) {
+    if ($line -match 'Architecture\s*:\s*(\S+)') { $architecture = $Matches[1]; break }
+}
+if ($architecture -eq 'x64') { $architecture = 'amd64' }
 
-foreach ($line in $lines) {
-    if ($line -like '*Architecture : *') {
-        $architecture = $line -replace 'Architecture : ',''
-        # If the architecture is x64, replace it with amd64
-        if ($architecture -eq 'x64') {
-            $architecture = 'amd64'
-        }
-        Write-Output "Architecture: $architecture"
-        break
-    }
+if ($architecture) {
+    Write-Output "系统架构: $architecture"
+} else {
+    Write-Output "未能检测到系统架构信息。"
 }
 
-if (-not $architecture) {
-    Write-Output "Architecture information not found."
-}
-
-Write-Output "Mounting complete! Performing removal of applications..."
-
+Write-Output "挂载完成!正在执行应用移除..."
 $packages = & 'dism' '/English' "/image:$($ScratchDisk)\scratchdir" '/Get-ProvisionedAppxPackages' |
     ForEach-Object {
         if ($_ -match 'PackageName : (.*)') {
@@ -203,7 +199,7 @@ $packages = & 'dism' '/English' "/image:$($ScratchDisk)\scratchdir" '/Get-Provis
     }
 
 $packagePrefixes = 'AppUp.IntelManagementandSecurityStatus',
-'Clipchamp.Clipchamp', 
+'Clipchamp.Clipchamp',
 'DolbyLaboratories.DolbyAccess',
 'DolbyLaboratories.DolbyDigitalPlusDecoderOEM',
 'Microsoft.BingNews',
@@ -252,39 +248,47 @@ $packagePrefixes = 'AppUp.IntelManagementandSecurityStatus',
 'MicrosoftCorporationII.MicrosoftFamily',
 'MicrosoftCorporationII.QuickAssist',
 'MSTeams',
-'MicrosoftTeams', 
+'MicrosoftTeams',
 'Microsoft.WindowsTerminal',
 'Microsoft.549981C3F5F10'
 
+# 移除包名以任一前缀开头的已安装应用
 $packagesToRemove = $packages | Where-Object {
-    $packageName = $_
-    $packagePrefixes -contains ($packagePrefixes | Where-Object { $packageName -like "*$_*" })
+    $n = $_
+    $hit = $false
+    foreach ($p in $packagePrefixes) { if ($n -like "$p*") { $hit = $true; break } }
+    $hit
 }
 foreach ($package in $packagesToRemove) {
     & 'dism' '/English' "/image:$($ScratchDisk)\scratchdir" '/Remove-ProvisionedAppxPackage' "/PackageName:$package"
 }
 
-Write-Output "Removing Edge:"
+Write-Output "正在移除 Edge:"
 Remove-Item -Path "$ScratchDisk\scratchdir\Program Files (x86)\Microsoft\Edge" -Recurse -Force | Out-Null
 Remove-Item -Path "$ScratchDisk\scratchdir\Program Files (x86)\Microsoft\EdgeUpdate" -Recurse -Force | Out-Null
 Remove-Item -Path "$ScratchDisk\scratchdir\Program Files (x86)\Microsoft\EdgeCore" -Recurse -Force | Out-Null
 & 'takeown' '/f' "$ScratchDisk\scratchdir\Windows\System32\Microsoft-Edge-Webview" '/r' | Out-Null
 & 'icacls' "$ScratchDisk\scratchdir\Windows\System32\Microsoft-Edge-Webview" '/grant' "$($adminGroup.Value):(F)" '/T' '/C' | Out-Null
 Remove-Item -Path "$ScratchDisk\scratchdir\Windows\System32\Microsoft-Edge-Webview" -Recurse -Force | Out-Null
-Write-Output "Removing OneDrive:"
-& 'takeown' '/f' "$ScratchDisk\scratchdir\Windows\System32\OneDriveSetup.exe" | Out-Null
-& 'icacls' "$ScratchDisk\scratchdir\Windows\System32\OneDriveSetup.exe" '/grant' "$($adminGroup.Value):(F)" '/T' '/C' | Out-Null
-Remove-Item -Path "$ScratchDisk\scratchdir\Windows\System32\OneDriveSetup.exe" -Force | Out-Null
-Write-Output "Removal complete!"
+Write-Output "正在移除 OneDrive:"
+$oneDrivePath = "$ScratchDisk\scratchdir\Windows\System32\OneDriveSetup.exe"
+if (Test-Path -Path $oneDrivePath) {
+    & 'takeown' '/f' $oneDrivePath | Out-Null
+    & 'icacls' $oneDrivePath '/grant' "$($adminGroup.Value):(F)" '/T' '/C' | Out-Null
+    Remove-Item -Path $oneDrivePath -Force | Out-Null
+} else {
+    Write-Output "未检测到 OneDriveSetup.exe,跳过(部分架构的原版镜像没有该文件)。"
+}
+Write-Output "移除完成!"
 Start-Sleep -Seconds 2
 Clear-Host
-Write-Output "Loading registry..."
+Write-Output "正在加载注册表..."
 reg load HKLM\zCOMPONENTS $ScratchDisk\scratchdir\Windows\System32\config\COMPONENTS | Out-Null
 reg load HKLM\zDEFAULT $ScratchDisk\scratchdir\Windows\System32\config\default | Out-Null
 reg load HKLM\zNTUSER $ScratchDisk\scratchdir\Users\Default\ntuser.dat | Out-Null
 reg load HKLM\zSOFTWARE $ScratchDisk\scratchdir\Windows\System32\config\SOFTWARE | Out-Null
 reg load HKLM\zSYSTEM $ScratchDisk\scratchdir\Windows\System32\config\SYSTEM | Out-Null
-Write-Output "Bypassing system requirements(on the system image):"
+Write-Output "正在绕过系统要求(作用于系统镜像):"
 Set-RegistryValue 'HKLM\zDEFAULT\Control Panel\UnsupportedHardwareNotificationCache' 'SV1' 'REG_DWORD' '0'
 Set-RegistryValue 'HKLM\zDEFAULT\Control Panel\UnsupportedHardwareNotificationCache' 'SV2' 'REG_DWORD' '0'
 Set-RegistryValue 'HKLM\zNTUSER\Control Panel\UnsupportedHardwareNotificationCache' 'SV1' 'REG_DWORD' '0'
@@ -295,7 +299,7 @@ Set-RegistryValue 'HKLM\zSYSTEM\Setup\LabConfig' 'BypassSecureBootCheck' 'REG_DW
 Set-RegistryValue 'HKLM\zSYSTEM\Setup\LabConfig' 'BypassStorageCheck' 'REG_DWORD' '1'
 Set-RegistryValue 'HKLM\zSYSTEM\Setup\LabConfig' 'BypassTPMCheck' 'REG_DWORD' '1'
 Set-RegistryValue 'HKLM\zSYSTEM\Setup\MoSetup' 'AllowUpgradesWithUnsupportedTPMOrCPU' 'REG_DWORD' '1'
-Write-Output "Disabling Sponsored Apps:"
+Write-Output "正在禁用推广应用:"
 Set-RegistryValue 'HKLM\zNTUSER\SOFTWARE\Microsoft\Windows\CurrentVersion\ContentDeliveryManager' 'OemPreInstalledAppsEnabled' 'REG_DWORD' '0'
 Set-RegistryValue 'HKLM\zNTUSER\SOFTWARE\Microsoft\Windows\CurrentVersion\ContentDeliveryManager' 'PreInstalledAppsEnabled' 'REG_DWORD' '0'
 Set-RegistryValue 'HKLM\zNTUSER\SOFTWARE\Microsoft\Windows\CurrentVersion\ContentDeliveryManager' 'SilentInstalledAppsEnabled' 'REG_DWORD' '0'
@@ -319,23 +323,23 @@ Remove-RegistryValue 'HKLM\zNTUSER\Software\Microsoft\Windows\CurrentVersion\Con
 Remove-RegistryValue 'HKLM\zNTUSER\Software\Microsoft\Windows\CurrentVersion\ContentDeliveryManager\SuggestedApps'
 Set-RegistryValue 'HKLM\zSOFTWARE\Policies\Microsoft\Windows\CloudContent' 'DisableConsumerAccountStateContent' 'REG_DWORD' '1'
 Set-RegistryValue 'HKLM\zSOFTWARE\Policies\Microsoft\Windows\CloudContent' 'DisableCloudOptimizedContent' 'REG_DWORD' '1'
-Write-Output "Enabling Local Accounts on OOBE:"
+Write-Output "正在启用 OOBE 本地账户:"
 Set-RegistryValue 'HKLM\zSOFTWARE\Microsoft\Windows\CurrentVersion\OOBE' 'BypassNRO' 'REG_DWORD' '1'
 Copy-Item -Path "$PSScriptRoot\autounattend.xml" -Destination "$ScratchDisk\scratchdir\Windows\System32\Sysprep\autounattend.xml" -Force | Out-Null
 
-Write-Output "Disabling Reserved Storage:"
+Write-Output "正在禁用保留空间:"
 Set-RegistryValue 'HKLM\zSOFTWARE\Microsoft\Windows\CurrentVersion\ReserveManager' 'ShippedWithReserves' 'REG_DWORD' '0'
-Write-Output "Disabling BitLocker Device Encryption"
+Write-Output "正在禁用 BitLocker 设备加密"
 Set-RegistryValue 'HKLM\zSYSTEM\ControlSet001\Control\BitLocker' 'PreventDeviceEncryption' 'REG_DWORD' '1'
-Write-Output "Disabling Chat icon:"
+Write-Output "正在禁用聊天图标:"
 Set-RegistryValue 'HKLM\zSOFTWARE\Policies\Microsoft\Windows\Windows Chat' 'ChatIcon' 'REG_DWORD' '3'
 Set-RegistryValue 'HKLM\zNTUSER\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\Advanced' 'TaskbarMn' 'REG_DWORD' '0'
-Write-Output "Removing Edge related registries"
+Write-Output "正在移除 Edge 相关注册表"
 Remove-RegistryValue "HKEY_LOCAL_MACHINE\zSOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall\Microsoft Edge"
 Remove-RegistryValue "HKEY_LOCAL_MACHINE\zSOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall\Microsoft Edge Update"
-Write-Output "Disabling OneDrive folder backup"
+Write-Output "正在禁用 OneDrive 文件夹备份"
 Set-RegistryValue "HKLM\zSOFTWARE\Policies\Microsoft\Windows\OneDrive" "DisableFileSyncNGSC" "REG_DWORD" "1"
-Write-Output "Disabling Telemetry:"
+Write-Output "正在禁用遥测:"
 Set-RegistryValue 'HKLM\zNTUSER\Software\Microsoft\Windows\CurrentVersion\AdvertisingInfo' 'Enabled' 'REG_DWORD' '0'
 Set-RegistryValue 'HKLM\zNTUSER\Software\Microsoft\Windows\CurrentVersion\Privacy' 'TailoredExperiencesWithDiagnosticDataEnabled' 'REG_DWORD' '0'
 Set-RegistryValue 'HKLM\zNTUSER\Software\Microsoft\Speech_OneCore\Settings\OnlineSpeechPrivacy' 'HasAccepted' 'REG_DWORD' '0'
@@ -346,73 +350,73 @@ Set-RegistryValue 'HKLM\zNTUSER\Software\Microsoft\InputPersonalization\TrainedD
 Set-RegistryValue 'HKLM\zNTUSER\Software\Microsoft\Personalization\Settings' 'AcceptedPrivacyPolicy' 'REG_DWORD' '0'
 Set-RegistryValue 'HKLM\zSOFTWARE\Policies\Microsoft\Windows\DataCollection' 'AllowTelemetry' 'REG_DWORD' '0'
 Set-RegistryValue 'HKLM\zSYSTEM\ControlSet001\Services\dmwappushservice' 'Start' 'REG_DWORD' '4'
-## Prevents installation of DevHome and Outlook
-Write-Output "Prevents installation of DevHome and Outlook:"
+## 阻止安装 DevHome 和 Outlook
+Write-Output "正在阻止安装 DevHome 和 Outlook:"
 Set-RegistryValue 'HKLM\zSOFTWARE\Microsoft\Windows\CurrentVersion\WindowsUpdate\Orchestrator\UScheduler_Oobe\OutlookUpdate' 'workCompleted' 'REG_DWORD' '1'
 Set-RegistryValue 'HKLM\zSOFTWARE\Microsoft\Windows\CurrentVersion\WindowsUpdate\Orchestrator\UScheduler\OutlookUpdate' 'workCompleted' 'REG_DWORD' '1'
 Set-RegistryValue 'HKLM\zSOFTWARE\Microsoft\Windows\CurrentVersion\WindowsUpdate\Orchestrator\UScheduler\DevHomeUpdate' 'workCompleted' 'REG_DWORD' '1'
 Remove-RegistryValue 'HKLM\zSOFTWARE\Microsoft\WindowsUpdate\Orchestrator\UScheduler_Oobe\OutlookUpdate'
 Remove-RegistryValue 'HKLM\zSOFTWARE\Microsoft\WindowsUpdate\Orchestrator\UScheduler_Oobe\DevHomeUpdate'
-Write-Output "Disabling Copilot"
+Write-Output "正在禁用 Copilot"
 Set-RegistryValue 'HKLM\zSOFTWARE\Policies\Microsoft\Windows\WindowsCopilot' 'TurnOffWindowsCopilot' 'REG_DWORD' '1'
 Set-RegistryValue 'HKLM\zSOFTWARE\Policies\Microsoft\Edge' 'HubsSidebarEnabled' 'REG_DWORD' '0'
 Set-RegistryValue 'HKLM\zSOFTWARE\Policies\Microsoft\Windows\Explorer' 'DisableSearchBoxSuggestions' 'REG_DWORD' '1'
-Write-Output "Prevents installation of Teams:"
+Write-Output "正在阻止安装 Teams:"
 Set-RegistryValue 'HKLM\zSOFTWARE\Policies\Microsoft\Teams' 'DisableInstallation' 'REG_DWORD' '1'
-Write-Output "Prevent installation of New Outlook":
+Write-Output "正在阻止安装新版 Outlook:"
 Set-RegistryValue 'HKLM\zSOFTWARE\Policies\Microsoft\Windows\Windows Mail' 'PreventRun' 'REG_DWORD' '1'
 
-Write-Host "Deleting scheduled task definition files..."
+Write-Host "正在删除计划任务定义文件..."
 $tasksPath = "$ScratchDisk\scratchdir\Windows\System32\Tasks"
 
-# Application Compatibility Appraiser
+# 应用程序兼容性评估
 Remove-Item -Path "$tasksPath\Microsoft\Windows\Application Experience\Microsoft Compatibility Appraiser" -Force -ErrorAction SilentlyContinue
 
-# Customer Experience Improvement Program (removes the entire folder and all tasks within it)
+# 客户体验改善计划(删除整个文件夹及其所有任务)
 Remove-Item -Path "$tasksPath\Microsoft\Windows\Customer Experience Improvement Program" -Recurse -Force -ErrorAction SilentlyContinue
 
-# Program Data Updater
+# 程序数据更新器
 Remove-Item -Path "$tasksPath\Microsoft\Windows\Application Experience\ProgramDataUpdater" -Force -ErrorAction SilentlyContinue
 
-# Chkdsk Proxy
+# Chkdsk 代理
 Remove-Item -Path "$tasksPath\Microsoft\Windows\Chkdsk\Proxy" -Force -ErrorAction SilentlyContinue
 
-# Windows Error Reporting (QueueReporting)
+# Windows 错误报告(QueueReporting)
 Remove-Item -Path "$tasksPath\Microsoft\Windows\Windows Error Reporting\QueueReporting" -Force -ErrorAction SilentlyContinue
-Write-Host "Task files have been deleted."
-Write-Host "Unmounting Registry..."
+Write-Host "计划任务文件已删除。"
+Write-Host "正在卸载注册表..."
 reg unload HKLM\zCOMPONENTS | Out-Null
 reg unload HKLM\zDEFAULT | Out-Null
 reg unload HKLM\zNTUSER | Out-Null
 reg unload HKLM\zSOFTWARE | Out-Null
 reg unload HKLM\zSYSTEM | Out-Null
-Write-Output "Cleaning up image..."
+Write-Output "正在清理镜像..."
 dism.exe /Image:$ScratchDisk\scratchdir /Cleanup-Image /StartComponentCleanup /ResetBase
-Write-Output "Cleanup complete."
+Write-Output "清理完成。"
 Write-Output ' '
-Write-Output "Unmounting image..."
+Write-Output "正在卸载镜像..."
 Dismount-WindowsImage -Path $ScratchDisk\scratchdir -Save
-Write-Host "Exporting image..."
+Write-Host "正在导出镜像..."
 Dism.exe /Export-Image /SourceImageFile:"$ScratchDisk\tiny11\sources\install.wim" /SourceIndex:$index /DestinationImageFile:"$ScratchDisk\tiny11\sources\install2.wim" /Compress:recovery
 Remove-Item -Path "$ScratchDisk\tiny11\sources\install.wim" -Force | Out-Null
 Rename-Item -Path "$ScratchDisk\tiny11\sources\install2.wim" -NewName "install.wim" | Out-Null
-Write-Output "Windows image completed. Continuing with boot.wim."
+Write-Output "Windows 系统镜像已完成,继续处理 boot.wim。"
 Start-Sleep -Seconds 2
 Clear-Host
-Write-Output "Mounting boot image:"
+Write-Output "正在挂载 boot 镜像:"
 $wimFilePath = "$ScratchDisk\tiny11\sources\boot.wim"
 & takeown "/F" $wimFilePath | Out-Null
 & icacls $wimFilePath "/grant" "$($adminGroup.Value):(F)"
 Set-ItemProperty -Path $wimFilePath -Name IsReadOnly -Value $false
 Mount-WindowsImage -ImagePath $ScratchDisk\tiny11\sources\boot.wim -Index 2 -Path $ScratchDisk\scratchdir
-Write-Output "Loading registry..."
+Write-Output "正在加载注册表..."
 reg load HKLM\zCOMPONENTS $ScratchDisk\scratchdir\Windows\System32\config\COMPONENTS
 reg load HKLM\zDEFAULT $ScratchDisk\scratchdir\Windows\System32\config\default
 reg load HKLM\zNTUSER $ScratchDisk\scratchdir\Users\Default\ntuser.dat
 reg load HKLM\zSOFTWARE $ScratchDisk\scratchdir\Windows\System32\config\SOFTWARE
 reg load HKLM\zSYSTEM $ScratchDisk\scratchdir\Windows\System32\config\SYSTEM
 
-Write-Output "Bypassing system requirements(on the setup image):"
+Write-Output "正在绕过系统要求(作用于安装镜像):"
 Set-RegistryValue 'HKLM\zDEFAULT\Control Panel\UnsupportedHardwareNotificationCache' 'SV1' 'REG_DWORD' '0'
 Set-RegistryValue 'HKLM\zDEFAULT\Control Panel\UnsupportedHardwareNotificationCache' 'SV2' 'REG_DWORD' '0'
 Set-RegistryValue 'HKLM\zNTUSER\Control Panel\UnsupportedHardwareNotificationCache' 'SV1' 'REG_DWORD' '0'
@@ -423,44 +427,44 @@ Set-RegistryValue 'HKLM\zSYSTEM\Setup\LabConfig' 'BypassSecureBootCheck' 'REG_DW
 Set-RegistryValue 'HKLM\zSYSTEM\Setup\LabConfig' 'BypassStorageCheck' 'REG_DWORD' '1'
 Set-RegistryValue 'HKLM\zSYSTEM\Setup\LabConfig' 'BypassTPMCheck' 'REG_DWORD' '1'
 Set-RegistryValue 'HKLM\zSYSTEM\Setup\MoSetup' 'AllowUpgradesWithUnsupportedTPMOrCPU' 'REG_DWORD' '1'
-Write-Output "Tweaking complete!"
+Write-Output "调整完成!"
 
-Write-Output "Unmounting Registry..."
+Write-Output "正在卸载注册表..."
 reg unload HKLM\zCOMPONENTS | Out-Null
 reg unload HKLM\zDEFAULT | Out-Null
 reg unload HKLM\zNTUSER | Out-Null
 reg unload HKLM\zSOFTWARE | Out-Null
 reg unload HKLM\zSYSTEM | Out-Null
 
-Write-Output "Unmounting image..."
+Write-Output "正在卸载镜像..."
 Dismount-WindowsImage -Path $ScratchDisk\scratchdir -Save
 Clear-Host
-Write-Output "The tiny11 image is now completed. Proceeding with the making of the ISO..."
-Write-Output "Copying unattended file for bypassing MS account on OOBE..."
+Write-Output "tiny11 镜像已构建完成,继续制作 ISO..."
+Write-Output "正在复制无人值守文件,用于 OOBE 阶段绕过微软账户..."
 Copy-Item -Path "$PSScriptRoot\autounattend.xml" -Destination "$ScratchDisk\tiny11\autounattend.xml" -Force | Out-Null
-Write-Output "Creating ISO image..."
-$ADKDepTools = "C:\Program Files (x86)\Windows Kits\10\Assessment and Deployment Kit\Deployment Tools\$hostarchitecture\Oscdimg"
+Write-Output "正在制作 ISO 镜像..."
+$ADKDepTools = "C:\Program Files (x86)\Windows Kits\10\Assessment and Deployment Kit\Deployment Tools\$hostArchitecture\Oscdimg"
 $localOSCDIMGPath = "$PSScriptRoot\oscdimg.exe"
 
 if ([System.IO.Directory]::Exists($ADKDepTools)) {
-    Write-Output "Will be using oscdimg.exe from system ADK."
+    Write-Output "将使用系统 ADK 中的 oscdimg.exe。"
     $OSCDIMG = "$ADKDepTools\oscdimg.exe"
 } else {
-    Write-Output "ADK folder not found. Will be using bundled oscdimg.exe."
+    Write-Output "未找到 ADK 文件夹,将使用随附的 oscdimg.exe。"
     $url = "https://msdl.microsoft.com/download/symbols/oscdimg.exe/3D44737265000/oscdimg.exe"
 
     if (-not (Test-Path -Path $localOSCDIMGPath)) {
-        Write-Output "Downloading oscdimg.exe..."
+        Write-Output "正在下载 oscdimg.exe..."
         Invoke-WebRequest -Uri $url -OutFile $localOSCDIMGPath
 
         if (Test-Path $localOSCDIMGPath) {
-            Write-Output "oscdimg.exe downloaded successfully."
+            Write-Output "oscdimg.exe 下载成功。"
         } else {
-            Write-Error "Failed to download oscdimg.exe."
+            Write-Error "oscdimg.exe 下载失败。"
             exit 1
         }
     } else {
-        Write-Output "oscdimg.exe already exists locally."
+        Write-Output "oscdimg.exe 已存在于本地。"
     }
 
     $OSCDIMG = $localOSCDIMGPath
@@ -468,68 +472,67 @@ if ([System.IO.Directory]::Exists($ADKDepTools)) {
 
 & "$OSCDIMG" '-m' '-o' '-u2' '-udfver102' "-bootdata:2#p0,e,b$ScratchDisk\tiny11\boot\etfsboot.com#pEF,e,b$ScratchDisk\tiny11\efi\microsoft\boot\efisys.bin" "$ScratchDisk\tiny11" "$PSScriptRoot\tiny11.iso"
 
-# Finishing up
-Write-Output "Creation completed! Press any key to exit the script..."
-Read-Host "Press Enter to continue"
-Write-Output "Performing Cleanup..."
+# 收尾
+Write-Output "创建完成!按任意键退出脚本..."
+Read-Host "按回车键继续"
+Write-Output "正在执行清理..."
 Remove-Item -Path "$ScratchDisk\tiny11" -Recurse -Force | Out-Null
 Remove-Item -Path "$ScratchDisk\scratchdir" -Recurse -Force | Out-Null
-Write-Output "Ejecting Iso drive"
+Write-Output "正在弹出 ISO 盘符"
 Get-Volume -DriveLetter $DriveLetter[0] | Get-DiskImage | Dismount-DiskImage
-Write-Output "Iso drive ejected"
-Write-Output "Removing oscdimg.exe..."
+Write-Output "ISO 盘符已弹出"
+Write-Output "正在移除 oscdimg.exe..."
 Remove-Item -Path "$PSScriptRoot\oscdimg.exe" -Force -ErrorAction SilentlyContinue
-Write-Output "Removing autounattend.xml..."
+Write-Output "正在移除 autounattend.xml..."
 Remove-Item -Path "$PSScriptRoot\autounattend.xml" -Force -ErrorAction SilentlyContinue
 
-Write-Output "Cleanup check :"
+Write-Output "清理检查:"
 if (Test-Path -Path "$ScratchDisk\tiny11") {
-    Write-Output "tiny11 folder still exists. Attempting to remove it again..."
+    Write-Output "tiny11 文件夹仍存在,尝试再次删除..."
     Remove-Item -Path "$ScratchDisk\tiny11" -Recurse -Force -ErrorAction SilentlyContinue
     if (Test-Path -Path "$ScratchDisk\tiny11") {
-        Write-Output "Failed to remove tiny11 folder."
+        Write-Output "tiny11 文件夹删除失败。"
     } else {
-        Write-Output "tiny11 folder removed successfully."
+        Write-Output "tiny11 文件夹删除成功。"
     }
 } else {
-    Write-Output "tiny11 folder does not exist. No action needed."
+    Write-Output "tiny11 文件夹不存在,无需处理。"
 }
 if (Test-Path -Path "$ScratchDisk\scratchdir") {
-    Write-Output "scratchdir folder still exists. Attempting to remove it again..."
+    Write-Output "scratchdir 文件夹仍存在,尝试再次删除..."
     Remove-Item -Path "$ScratchDisk\scratchdir" -Recurse -Force -ErrorAction SilentlyContinue
     if (Test-Path -Path "$ScratchDisk\scratchdir") {
-        Write-Output "Failed to remove scratchdir folder."
+        Write-Output "scratchdir 文件夹删除失败。"
     } else {
-        Write-Output "scratchdir folder removed successfully."
+        Write-Output "scratchdir 文件夹删除成功。"
     }
 } else {
-    Write-Output "scratchdir folder does not exist. No action needed."
+    Write-Output "scratchdir 文件夹不存在,无需处理。"
 }
 if (Test-Path -Path "$PSScriptRoot\oscdimg.exe") {
-    Write-Output "oscdimg.exe still exists. Attempting to remove it again..."
+    Write-Output "oscdimg.exe 仍存在,尝试再次删除..."
     Remove-Item -Path "$PSScriptRoot\oscdimg.exe" -Force -ErrorAction SilentlyContinue
     if (Test-Path -Path "$PSScriptRoot\oscdimg.exe") {
-        Write-Output "Failed to remove oscdimg.exe."
+        Write-Output "oscdimg.exe 删除失败。"
     } else {
-        Write-Output "oscdimg.exe removed successfully."
+        Write-Output "oscdimg.exe 删除成功。"
     }
 } else {
-    Write-Output "oscdimg.exe does not exist. No action needed."
+    Write-Output "oscdimg.exe 不存在,无需处理。"
 }
 if (Test-Path -Path "$PSScriptRoot\autounattend.xml") {
-    Write-Output "autounattend.xml still exists. Attempting to remove it again..."
+    Write-Output "autounattend.xml 仍存在,尝试再次删除..."
     Remove-Item -Path "$PSScriptRoot\autounattend.xml" -Force -ErrorAction SilentlyContinue
     if (Test-Path -Path "$PSScriptRoot\autounattend.xml") {
-        Write-Output "Failed to remove autounattend.xml."
+        Write-Output "autounattend.xml 删除失败。"
     } else {
-        Write-Output "autounattend.xml removed successfully."
+        Write-Output "autounattend.xml 删除成功。"
     }
 } else {
-    Write-Output "autounattend.xml does not exist. No action needed."
+    Write-Output "autounattend.xml 不存在,无需处理。"
 }
 
-# Stop the transcript
+# 终止日志记录
 Stop-Transcript
 
 exit
-
