@@ -72,8 +72,8 @@ function Get-Tiny11Config {
 }
 $config = Get-Tiny11Config -Path "$PSScriptRoot\config.json"
 
-Start-Transcript -Path "$PSScriptRoot\tiny11.log"
-Write-Host "欢迎使用 tiny11 Core 构建工具!(BETA 05-09-25)"
+Start-Transcript -Path "$PSScriptRoot\tiny11_$(get-date -f yyyyMMdd_HHmmss).log"
+Write-Host "欢迎使用 tiny11 Core 构建工具!(BETA 08-21-26)"
 Write-Host "此脚本将生成深度精简的 Windows 11 镜像。注意:精简后无法再添加语言包、更新或功能,仅适合快速测试或虚拟机环境。"
 Write-Host "是否继续?(y/n)"
 $input = Read-Host
@@ -108,6 +108,9 @@ Clear-Host
 Write-Host "正在获取镜像信息:"
 & 'dism' '/English' "/Get-WimInfo" "/wimfile:$mainOSDrive\tiny11\sources\install.wim"
 $index = Read-Host "请输入镜像索引(Image Index)"
+# ponytail: 提前询问 .NET 3.5(镜像创建后无法再启用),选好索引立即询问,无需等挂载完成;挂载期间可离开,完成后自动按此结果启用。
+$enableNet35 = $null
+while ($enableNet35 -notin @('y','n')) { $enableNet35 = Read-Host "是否启用 .NET 3.5?(镜像创建后无法再启用)(y/n)" }
 Write-Host "正在挂载 Windows 镜像,可能需要较长时间。"
 $wimFilePath = "$mainOSDrive\tiny11\sources\install.wim"
 & takeown "/F" $wimFilePath
@@ -115,9 +118,14 @@ $wimFilePath = "$mainOSDrive\tiny11\sources\install.wim"
 try { Set-ItemProperty -Path $wimFilePath -Name IsReadOnly -Value $false -ErrorAction Stop } catch { }
 New-Item -ItemType Directory -Force -Path "$mainOSDrive\scratchdir" > $null
 & dism /English "/mount-image" "/imagefile:$mainOSDrive\tiny11\sources\install.wim" "/index:$index" "/mountdir:$mainOSDrive\scratchdir"
-# ponytail: 提前询问 .NET 3.5(镜像创建后无法再启用),避免中途才弹窗打断流程。执行仍放在系统包移除之后。
-$enableNet35 = $null
-while ($enableNet35 -notin @('y','n')) { $enableNet35 = Read-Host "是否启用 .NET 3.5?(镜像创建后无法再启用)(y/n)" }
+# ponytail: 挂载完成后按挂载前询问的结果启用 .NET 3.5。源文件使用工作目录下复制好的 sources\sxs。
+if ($enableNet35 -eq 'y') {
+    Write-Host "正在启用 .NET 3.5,请稍候..."
+    & 'dism' '/English' "/image:$mainOSDrive\scratchdir" '/enable-feature' '/featurename:NetFX3' '/All' "/source:$mainOSDrive\tiny11\sources\sxs"
+    Write-Host ".NET 3.5 已启用。"
+} else {
+    Write-Host "未启用 .NET 3.5,继续..."
+}
 $imageIntl = & dism /English /Get-Intl "/Image:$mainOSDrive\scratchdir"
 $languageCode = $null
 foreach ($line in ($imageIntl -split '\r?\n')) {
@@ -156,9 +164,6 @@ foreach ($packagePattern in $packagePatterns) {
     $packagesToRemove = $allPackages | Where-Object { $_ -like "$packagePattern*" }
     foreach ($package in $packagesToRemove) { $packageIdentity = ($package -split "\s+")[0]; Write-Host "正在移除 $packageIdentity..."; & dism /image:$scratchDir /Remove-Package /PackageName:$packageIdentity }
 }
-# .NET 3.5 的询问已在挂载后提前完成($enableNet35),此处仅在用户选择启用时执行。
-if ($enableNet35 -eq 'y') { Write-Host "正在启用 .NET 3.5..."; & 'dism' "/image:$scratchDir" '/enable-feature' '/featurename:NetFX3' '/All' "/source:$mainOSDrive\tiny11\sources\sxs"; Write-Host ".NET 3.5 已启用。" }
-else { Write-Host "未启用 .NET 3.5,继续..." }
 }
 if ($config.edge) {
 Write-Host "正在移除 Edge:"
@@ -272,7 +277,7 @@ elseif ($architecture -eq "arm64") {
 }
 foreach ($dir in $dirsToCopy) {
     $sourceDirs = Get-ChildItem -Path $sourceDirectory -Filter $dir -Directory
-    foreach ($sourceDir in $sourceDirs) { $destDir = Join-Path -Path $destinationDirectory -ChildPath $sourceDir.Name; Write-Host "正在复制 $($sourceDir.Name)..."; Copy-Item -Path $sourceDir.FullName -Destination $destDir -Recurse -Force }
+    foreach ($sourceDir in $sourceDirs) { $destDir = Join-Path -Path $destinationDirectory -ChildPath $sourceDir.Name; Write-Host "正在移动 $($sourceDir.Name)..."; Move-Item -Path $sourceDir.FullName -Destination $destDir }
 }
 Write-Host "正在删除 WinSxS,可能需要较长时间..."
 Remove-Item -Path $mainOSDrive\scratchdir\Windows\WinSxS -Recurse -Force
@@ -481,6 +486,9 @@ Read-Host "按回车键继续"
 Write-Host "正在清理..."
 Remove-Item -Path "$mainOSDrive\tiny11" -Recurse -Force > $null
 Remove-Item -Path "$mainOSDrive\scratchdir" -Recurse -Force > $null
+Write-Host "正在弹出 ISO 盘符"
+Get-Volume -DriveLetter ($DriveLetter.TrimEnd(':')) -ErrorAction SilentlyContinue | Get-DiskImage -ErrorAction SilentlyContinue | Dismount-DiskImage -ErrorAction SilentlyContinue
+Write-Host "ISO 盘符已弹出"
 Stop-Transcript
 exit
 }

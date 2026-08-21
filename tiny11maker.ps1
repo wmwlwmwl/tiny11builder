@@ -24,7 +24,7 @@
 
 .NOTES
     作者: ntdevlabs
-    日期: 09-07-25
+    日期: 08-21-26
 #>
 
 #---------[ 参数 ]---------#
@@ -127,11 +127,11 @@ if (-not (Test-Path -Path "$PSScriptRoot/autounattend.xml")) {
 }
 
 # 开始记录日志并准备窗口
-Start-Transcript -Path "$PSScriptRoot\tiny11_$(get-date -f yyyyMMdd_HHmms).log"
+Start-Transcript -Path "$PSScriptRoot\tiny11_$(get-date -f yyyyMMdd_HHmmss).log"
 
 $Host.UI.RawUI.WindowTitle = "Tiny11 镜像构建工具"
 Clear-Host
-Write-Output "欢迎使用 tiny11 镜像构建工具!版本: 09-07-25"
+Write-Output "欢迎使用 tiny11 镜像构建工具!版本: 08-21-26"
 
 $hostArchitecture = $Env:PROCESSOR_ARCHITECTURE
 New-Item -ItemType Directory -Force -Path "$ScratchDisk\tiny11\sources" | Out-Null
@@ -486,6 +486,7 @@ Set-RegistryValue 'HKLM\zSYSTEM\Setup\LabConfig' 'BypassSecureBootCheck' 'REG_DW
 Set-RegistryValue 'HKLM\zSYSTEM\Setup\LabConfig' 'BypassStorageCheck' 'REG_DWORD' '1'
 Set-RegistryValue 'HKLM\zSYSTEM\Setup\LabConfig' 'BypassTPMCheck' 'REG_DWORD' '1'
 Set-RegistryValue 'HKLM\zSYSTEM\Setup\MoSetup' 'AllowUpgradesWithUnsupportedTPMOrCPU' 'REG_DWORD' '1'
+Set-RegistryValue 'HKLM\zSYSTEM\Setup' 'CmdLine' 'REG_SZ' 'X:\sources\setup.exe'
 }
 Write-Output "调整完成!"
 
