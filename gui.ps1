@@ -96,22 +96,30 @@ $form.StartPosition = [System.Windows.Forms.FormStartPosition]::CenterScreen
 $form.MinimumSize = New-Object System.Drawing.Size(540, 780)
 
 # 顶部:构建脚本选择
+# RadioButton 圆圈是系统绘制,若 AutoSize 按字体度量算的行高过小,圆圈会被裁成半圆。
+# 这里固定高度 24px 并关闭 AutoSize,用 TextAlign 垂直居中,确保圆圈完整显示。
 $radioMaker = New-Object System.Windows.Forms.RadioButton
 $radioMaker.Text = '常规版 (tiny11maker)'
-$radioMaker.AutoSize = $true
-$radioMaker.Location = New-Object System.Drawing.Point(92, 15)
+$radioMaker.AutoSize = $false
+$radioMaker.Size = New-Object System.Drawing.Size(140, 24)
+$radioMaker.TextAlign = [System.Drawing.ContentAlignment]::MiddleLeft
+$radioMaker.Location = New-Object System.Drawing.Point(92, 12)
 $form.Controls.Add($radioMaker)
 
 $radioCore = New-Object System.Windows.Forms.RadioButton
 $radioCore.Text = '核心精简版 (tiny11Coremaker)'
-$radioCore.AutoSize = $true
-$radioCore.Location = New-Object System.Drawing.Point(232, 15)
+$radioCore.AutoSize = $false
+$radioCore.Size = New-Object System.Drawing.Size(180, 24)
+$radioCore.TextAlign = [System.Drawing.ContentAlignment]::MiddleLeft
+$radioCore.Location = New-Object System.Drawing.Point(240, 12)
 $form.Controls.Add($radioCore)
 
 $lblScript = New-Object System.Windows.Forms.Label
 $lblScript.Text = '构建脚本:'
-$lblScript.AutoSize = $true
-$lblScript.Location = New-Object System.Drawing.Point(12, 16)
+$lblScript.AutoSize = $false
+$lblScript.Size = New-Object System.Drawing.Size(70, 24)
+$lblScript.TextAlign = [System.Drawing.ContentAlignment]::MiddleLeft
+$lblScript.Location = New-Object System.Drawing.Point(12, 12)
 $form.Controls.Add($lblScript)
 
 # 中部:配置勾选(普通 CheckBox,绝对坐标手动布局,一次容纳全部)
@@ -121,7 +129,9 @@ $y = 52
 foreach ($k in $keyOrder) {
     $cb = New-Object System.Windows.Forms.CheckBox
     $cb.Text = $keyLabels[$k]
-    $cb.AutoSize = $true
+    $cb.AutoSize = $false
+    $cb.Size = New-Object System.Drawing.Size(420, 24)
+    $cb.TextAlign = [System.Drawing.ContentAlignment]::MiddleLeft
     $cb.Location = New-Object System.Drawing.Point(20, $y)
     $cb.Checked = $true
     $form.Controls.Add($cb)
