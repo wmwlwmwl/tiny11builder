@@ -1,4 +1,30 @@
 ﻿# tiny11 Core 构建脚本(汉化版)
+#---------[ 参数 ]---------#
+<#
+.SYNOPSIS
+    用于构建深度精简版 Windows 11 镜像的脚本(核心版)。
+
+.DESCRIPTION
+    与常规版 tiny11maker.ps1 相同的工作盘/源盘参数逻辑:
+    -ISO 用于指定已挂载镜像的盘符, 省略时交互询问。
+    -SCRATCH 用于指定工作分区(存放中间文件与 scratchdir), 省略时默认使用脚本所在盘。
+
+.PARAMETER ISO
+    已挂载 iso 的盘符(如: E)
+
+.PARAMETER SCRATCH
+    工作分区盘符(如: D)
+
+.EXAMPLE
+    .\tiny11Coremaker.ps1 E D
+    .\tiny11Coremaker.ps1 -ISO E -SCRATCH D
+    .\tiny11Coremaker.ps1
+#>
+param (
+    [ValidatePattern('^[c-zC-Z]$')][string]$ISO,
+    [ValidatePattern('^[c-zC-Z]$')][string]$SCRATCH
+)
+
 if ((Get-ExecutionPolicy) -eq 'Restricted') {
     Write-Host "当前执行策略为 Restricted,无法运行脚本。是否改为 RemoteSigned?(yes/no)"
     $response = Read-Host
@@ -55,10 +81,10 @@ if ($input -eq 'y') {
 Write-Host "开始处理..."
 Start-Sleep -Seconds 3
 Clear-Host
-$mainOSDrive = $env:SystemDrive
+if (-not $SCRATCH) { $mainOSDrive = $PSScriptRoot -replace '[\\]+$', '' } else { $mainOSDrive = $SCRATCH + ":" }
 $hostArchitecture = $Env:PROCESSOR_ARCHITECTURE
 New-Item -ItemType Directory -Force -Path "$mainOSDrive\tiny11\sources" > $null
-$DriveLetter = Read-Host "请输入 Windows 11 镜像所在盘符"
+if (-not $ISO) { $DriveLetter = Read-Host "请输入 Windows 11 镜像所在盘符" } else { $DriveLetter = $ISO }
 $DriveLetter = $DriveLetter + ":"
 if ((Test-Path "$DriveLetter\sources\boot.wim") -eq $false -or (Test-Path "$DriveLetter\sources\install.wim") -eq $false) {
     if ((Test-Path "$DriveLetter\sources\install.esd") -eq $true) {
@@ -83,23 +109,23 @@ Write-Host "正在获取镜像信息:"
 & 'dism' '/English' "/Get-WimInfo" "/wimfile:$mainOSDrive\tiny11\sources\install.wim"
 $index = Read-Host "请输入镜像索引(Image Index)"
 Write-Host "正在挂载 Windows 镜像,可能需要较长时间。"
-$wimFilePath = "$($env:SystemDrive)\tiny11\sources\install.wim"
+$wimFilePath = "$mainOSDrive\tiny11\sources\install.wim"
 & takeown "/F" $wimFilePath
 & icacls $wimFilePath "/grant" "$($adminGroup.Value):(F)"
 try { Set-ItemProperty -Path $wimFilePath -Name IsReadOnly -Value $false -ErrorAction Stop } catch { }
 New-Item -ItemType Directory -Force -Path "$mainOSDrive\scratchdir" > $null
-& dism /English "/mount-image" "/imagefile:$($env:SystemDrive)\tiny11\sources\install.wim" "/index:$index" "/mountdir:$($env:SystemDrive)\scratchdir"
+& dism /English "/mount-image" "/imagefile:$mainOSDrive\tiny11\sources\install.wim" "/index:$index" "/mountdir:$mainOSDrive\scratchdir"
 # ponytail: 提前询问 .NET 3.5(镜像创建后无法再启用),避免中途才弹窗打断流程。执行仍放在系统包移除之后。
 $enableNet35 = $null
 while ($enableNet35 -notin @('y','n')) { $enableNet35 = Read-Host "是否启用 .NET 3.5?(镜像创建后无法再启用)(y/n)" }
-$imageIntl = & dism /English /Get-Intl "/Image:$($env:SystemDrive)\scratchdir"
+$imageIntl = & dism /English /Get-Intl "/Image:$mainOSDrive\scratchdir"
 $languageCode = $null
 foreach ($line in ($imageIntl -split '\r?\n')) {
     if ($line -match 'Default system UI language\s*:\s*([a-zA-Z]{2}-[a-zA-Z]{2})') { $languageCode = $Matches[1]; break }
 }
 if ($languageCode) { Write-Host "默认系统 UI 语言代码: $languageCode" }
 else { Write-Host "未能检测到系统 UI 语言代码,语言相关可选包将不被移除。" }
-$imageInfo = & 'dism' '/English' '/Get-WimInfo' "/wimFile:$($env:SystemDrive)\tiny11\sources\install.wim" "/index:$index"
+$imageInfo = & 'dism' '/English' '/Get-WimInfo' "/wimFile:$mainOSDrive\tiny11\sources\install.wim" "/index:$index"
 $architecture = $null
 foreach ($line in ($imageInfo -split '\r?\n')) {
     if ($line -match 'Architecture\s*:\s*(\S+)') { $architecture = $Matches[1]; break }
@@ -109,20 +135,20 @@ if ($architecture) { Write-Host "系统架构: $architecture" }
 else { Write-Host "未能检测到系统架构,无法继续精简 WinSxS。"; exit 1 }
 if ($config.apps) {
 Write-Host "挂载完成!正在移除应用..."
-$packages = & 'dism' '/English' "/image:$($env:SystemDrive)\scratchdir" '/Get-ProvisionedAppxPackages' | ForEach-Object { if ($_ -match 'PackageName : (.*)') { $matches[1] } }
+$packages = & 'dism' '/English' "/image:$mainOSDrive\scratchdir" '/Get-ProvisionedAppxPackages' | ForEach-Object { if ($_ -match 'PackageName : (.*)') { $matches[1] } }
 $packagePrefixes = 'Clipchamp.Clipchamp_','Microsoft.BingNews_','Microsoft.BingWeather_','Microsoft.GamingApp_','Microsoft.GetHelp_','Microsoft.Getstarted_','Microsoft.MicrosoftOfficeHub_','Microsoft.MicrosoftSolitaireCollection_','Microsoft.People_','Microsoft.PowerAutomateDesktop_','Microsoft.Todos_','Microsoft.WindowsAlarms_','microsoft.windowscommunicationsapps_','Microsoft.WindowsFeedbackHub_','Microsoft.WindowsMaps_','Microsoft.WindowsSoundRecorder_','Microsoft.Xbox.TCUI_','Microsoft.XboxGamingOverlay_','Microsoft.XboxGameOverlay_','Microsoft.XboxSpeechToTextOverlay_','Microsoft.YourPhone_','Microsoft.ZuneMusic_','Microsoft.ZuneVideo_','MicrosoftCorporationII.MicrosoftFamily_','MicrosoftCorporationII.QuickAssist_','MicrosoftTeams_','Microsoft.549981C3F5F10_','Microsoft.Windows.Copilot','MSTeams_','Microsoft.OutlookForWindows_','Microsoft.Windows.Teams_','Microsoft.Copilot_'
 $packagesToRemove = $packages | Where-Object {
     $n = $_; $hit = $false
     foreach ($p in $packagePrefixes) { if ($n -like "$p*") { $hit=$true; break } }
     $hit
 }
-foreach ($package in $packagesToRemove) { Write-Host "正在移除 $package :"; & 'dism' '/English' "/image:$($env:SystemDrive)\scratchdir" '/Remove-ProvisionedAppxPackage' "/PackageName:$package" }
+foreach ($package in $packagesToRemove) { Write-Host "正在移除 $package :"; & 'dism' '/English' "/image:$mainOSDrive\scratchdir" '/Remove-ProvisionedAppxPackage' "/PackageName:$package" }
 }
 if ($config.systemPackages) {
 Write-Host "应用移除完成!继续移除系统包..."
 Start-Sleep -Seconds 1
 Clear-Host
-$scratchDir = "$($env:SystemDrive)\scratchdir"
+$scratchDir = "$mainOSDrive\scratchdir"
 $packagePatterns = @("Microsoft-Windows-InternetExplorer-Optional-Package~31bf3856ad364e35","Microsoft-Windows-Kernel-LA57-FoD-Package~31bf3856ad364e35~amd64","Microsoft-Windows-LanguageFeatures-Handwriting-$languageCode-Package~31bf3856ad364e35","Microsoft-Windows-LanguageFeatures-OCR-$languageCode-Package~31bf3856ad364e35","Microsoft-Windows-LanguageFeatures-Speech-$languageCode-Package~31bf3856ad364e35","Microsoft-Windows-LanguageFeatures-TextToSpeech-$languageCode-Package~31bf3856ad364e35","Microsoft-Windows-MediaPlayer-Package~31bf3856ad364e35","Microsoft-Windows-Wallpaper-Content-Extended-FoD-Package~31bf3856ad364e35","Windows-Defender-Client-Package~31bf3856ad364e35~","Microsoft-Windows-WordPad-FoD-Package~","Microsoft-Windows-TabletPCMath-Package~","Microsoft-Windows-StepsRecorder-Package~")
 $allPackages = & dism /image:$scratchDir /Get-Packages /Format:Table
 $allPackages = $allPackages -split "`n" | Select-Object -Skip 1
@@ -131,7 +157,7 @@ foreach ($packagePattern in $packagePatterns) {
     foreach ($package in $packagesToRemove) { $packageIdentity = ($package -split "\s+")[0]; Write-Host "正在移除 $packageIdentity..."; & dism /image:$scratchDir /Remove-Package /PackageName:$packageIdentity }
 }
 # .NET 3.5 的询问已在挂载后提前完成($enableNet35),此处仅在用户选择启用时执行。
-if ($enableNet35 -eq 'y') { Write-Host "正在启用 .NET 3.5..."; & 'dism' "/image:$scratchDir" '/enable-feature' '/featurename:NetFX3' '/All' "/source:$($env:SystemDrive)\tiny11\sources\sxs"; Write-Host ".NET 3.5 已启用。" }
+if ($enableNet35 -eq 'y') { Write-Host "正在启用 .NET 3.5..."; & 'dism' "/image:$scratchDir" '/enable-feature' '/featurename:NetFX3' '/All' "/source:$mainOSDrive\tiny11\sources\sxs"; Write-Host ".NET 3.5 已启用。" }
 else { Write-Host "未启用 .NET 3.5,继续..." }
 }
 if ($config.edge) {
@@ -397,7 +423,7 @@ Write-Host "系统镜像完成,继续处理 boot.wim。"
 Start-Sleep -Seconds 2
 Clear-Host
 Write-Host "正在挂载 boot 镜像:"
-$wimFilePath = "$($env:SystemDrive)\tiny11\sources\boot.wim"
+$wimFilePath = "$mainOSDrive\tiny11\sources\boot.wim"
 & takeown "/F" $wimFilePath > $null
 & icacls $wimFilePath "/grant" "$($adminGroup.Value):(F)"
 Set-ItemProperty -Path $wimFilePath -Name IsReadOnly -Value $false
