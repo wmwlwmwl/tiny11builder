@@ -89,6 +89,9 @@ $wimFilePath = "$($env:SystemDrive)\tiny11\sources\install.wim"
 try { Set-ItemProperty -Path $wimFilePath -Name IsReadOnly -Value $false -ErrorAction Stop } catch { }
 New-Item -ItemType Directory -Force -Path "$mainOSDrive\scratchdir" > $null
 & dism /English "/mount-image" "/imagefile:$($env:SystemDrive)\tiny11\sources\install.wim" "/index:$index" "/mountdir:$($env:SystemDrive)\scratchdir"
+# ponytail: 提前询问 .NET 3.5(镜像创建后无法再启用),避免中途才弹窗打断流程。执行仍放在系统包移除之后。
+$enableNet35 = $null
+while ($enableNet35 -notin @('y','n')) { $enableNet35 = Read-Host "是否启用 .NET 3.5?(镜像创建后无法再启用)(y/n)" }
 $imageIntl = & dism /English /Get-Intl "/Image:$($env:SystemDrive)\scratchdir"
 $languageCode = $null
 foreach ($line in ($imageIntl -split '\r?\n')) {
@@ -127,11 +130,9 @@ foreach ($packagePattern in $packagePatterns) {
     $packagesToRemove = $allPackages | Where-Object { $_ -like "$packagePattern*" }
     foreach ($package in $packagesToRemove) { $packageIdentity = ($package -split "\s+")[0]; Write-Host "正在移除 $packageIdentity..."; & dism /image:$scratchDir /Remove-Package /PackageName:$packageIdentity }
 }
-Write-Host "是否启用 .NET 3.5?镜像创建后无法再启用。(y/n)"
-$input = Read-Host
-if ($input -eq 'y') { Write-Host "正在启用 .NET 3.5..."; & 'dism' "/image:$scratchDir" '/enable-feature' '/featurename:NetFX3' '/All' "/source:$($env:SystemDrive)\tiny11\sources\sxs"; Write-Host ".NET 3.5 已启用。" }
-elseif ($input -eq 'n') { Write-Host "未启用 .NET 3.5,继续..." }
-else { Write-Host "输入无效,请输入 y 或 n。" }
+# .NET 3.5 的询问已在挂载后提前完成($enableNet35),此处仅在用户选择启用时执行。
+if ($enableNet35 -eq 'y') { Write-Host "正在启用 .NET 3.5..."; & 'dism' "/image:$scratchDir" '/enable-feature' '/featurename:NetFX3' '/All' "/source:$($env:SystemDrive)\tiny11\sources\sxs"; Write-Host ".NET 3.5 已启用。" }
+else { Write-Host "未启用 .NET 3.5,继续..." }
 }
 if ($config.edge) {
 Write-Host "正在移除 Edge:"
