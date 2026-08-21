@@ -60,7 +60,9 @@ function Read-Config {
 
 function Save-Config {
     $cfg = [ordered]@{}
-    foreach ($k in $keyLabels.Keys) { $cfg[$k] = [bool]$checkbox[$k].Checked }
+    for ($i = 0; $i -lt $keyOrder.Count; $i++) {
+        $cfg[$keyOrder[$i]] = $list.GetItemChecked($i)
+    }
     try {
         [System.IO.File]::WriteAllText($configPath, ($cfg | ConvertTo-Json), [System.Text.UTF8Encoding]::new($false))
         return $true
@@ -101,30 +103,25 @@ $radioCore.AutoSize = $true
 $radioCore.Location = New-Object System.Drawing.Point(230, 13)
 $topPanel.Controls.Add($radioCore)
 
-# 中部:配置勾选(可滚动)
-$scroll = New-Object System.Windows.Forms.Panel
-$scroll.Dock = [System.Windows.Forms.DockStyle]::Fill
-$scroll.AutoScroll = $true
-$form.Controls.Add($scroll)
+# 中部:配置勾选(CheckedListBox 自带滚动,项顺序稳定)
+$list = New-Object System.Windows.Forms.CheckedListBox
+$list.CheckOnClick = $true
+$list.BorderStyle = [System.Windows.Forms.BorderStyle]::None
 
-$checkbox = @{}
-$y = 6
-foreach ($k in $keyLabels.Keys) {
-    $cb = New-Object System.Windows.Forms.CheckBox
-    $cb.Text = $keyLabels[$k]
-    $cb.AutoSize = $true
-    $cb.Location = New-Object System.Drawing.Point(16, $y)
-    $cb.Checked = $true
-    $scroll.Controls.Add($cb)
-    $checkbox[$k] = $cb
-    $y += 30
+# 记录 索引 -> 配置键 的对应关系(添加顺序与 keyLabels.Keys 完全一致)
+$keyOrder = @($keyLabels.Keys)
+foreach ($k in $keyOrder) {
+    $list.Items.Add($keyLabels[$k]) | Out-Null
+    $list.SetItemChecked($list.Items.Count - 1, $true)
 }
+$list.Dock = [System.Windows.Forms.DockStyle]::Fill
 
 # 底部:操作按钮
 $bottomPanel = New-Object System.Windows.Forms.Panel
 $bottomPanel.Dock = [System.Windows.Forms.DockStyle]::Bottom
 $bottomPanel.Height = 60
 $form.Controls.Add($bottomPanel)
+$form.Controls.Add($list)
 
 $btnSave = New-Object System.Windows.Forms.Button
 $btnSave.Text = '保存配置'
@@ -183,7 +180,9 @@ $btnBuild.Add_Click({
 
 $form.Add_Shown({
     $cfg = Read-Config
-    foreach ($k in $keyLabels.Keys) { $checkbox[$k].Checked = $cfg[$k] }
+    for ($i = 0; $i -lt $keyOrder.Count; $i++) {
+        $list.SetItemChecked($i, $cfg[$keyOrder[$i]])
+    }
 })
 
 [System.Windows.Forms.Application]::Run($form)
