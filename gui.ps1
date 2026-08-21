@@ -85,82 +85,88 @@ function Save-Config {
     }
 }
 
+# 开启视觉样式,让 WinForms 控件使用视觉样式渲染(解决系统绘制的圆圈/按钮在 DPI 下被裁切的问题)
+[System.Windows.Forms.Application]::EnableVisualStyles() | Out-Null
+
 #---------[ 界面 ]---------
 $form = New-Object System.Windows.Forms.Form
 $form.Text = 'tiny11 builder 图形界面'
-# AutoScaleMode=None:控件按脚本里写入的绝对像素坐标渲染,
-# 不参与 Font 自动缩放,杜绝 DPI 换算造成的坐标/尺寸错乱。
-$form.AutoScaleMode = [System.Windows.Forms.AutoScaleMode]::None
-$form.Size = New-Object System.Drawing.Size(560, 780)
+$form.Font = New-Object System.Drawing.Font('Segoe UI', 9)
 $form.StartPosition = [System.Windows.Forms.FormStartPosition]::CenterScreen
-$form.MinimumSize = New-Object System.Drawing.Size(540, 780)
+$form.MinimumSize = New-Object System.Drawing.Size(540, 720)
+$form.Size = New-Object System.Drawing.Size(560, 780)
 
-# 顶部:构建脚本选择
-# RadioButton 圆圈是系统绘制,若 AutoSize 按字体度量算的行高过小,圆圈会被裁成半圆。
-# 这里固定高度 24px 并关闭 AutoSize,用 TextAlign 垂直居中,确保圆圈完整显示。
-$radioMaker = New-Object System.Windows.Forms.RadioButton
-$radioMaker.Text = '常规版 (tiny11maker)'
-$radioMaker.AutoSize = $false
-$radioMaker.Size = New-Object System.Drawing.Size(140, 24)
-$radioMaker.TextAlign = [System.Drawing.ContentAlignment]::MiddleLeft
-$radioMaker.Location = New-Object System.Drawing.Point(92, 12)
-$form.Controls.Add($radioMaker)
-
-$radioCore = New-Object System.Windows.Forms.RadioButton
-$radioCore.Text = '核心精简版 (tiny11Coremaker)'
-$radioCore.AutoSize = $false
-$radioCore.Size = New-Object System.Drawing.Size(180, 24)
-$radioCore.TextAlign = [System.Drawing.ContentAlignment]::MiddleLeft
-$radioCore.Location = New-Object System.Drawing.Point(240, 12)
-$form.Controls.Add($radioCore)
+# 顶部:FlowLayoutPanel 自动排列 label + radio
+$topPanel = New-Object System.Windows.Forms.FlowLayoutPanel
+$topPanel.Dock = [System.Windows.Forms.DockStyle]::Top
+$topPanel.Height = 46
+$topPanel.Padding = New-Object System.Windows.Forms.Padding(12, 10, 12, 6)
+$form.Controls.Add($topPanel)
 
 $lblScript = New-Object System.Windows.Forms.Label
 $lblScript.Text = '构建脚本:'
-$lblScript.AutoSize = $false
-$lblScript.Size = New-Object System.Drawing.Size(70, 24)
-$lblScript.TextAlign = [System.Drawing.ContentAlignment]::MiddleLeft
-$lblScript.Location = New-Object System.Drawing.Point(12, 12)
-$form.Controls.Add($lblScript)
+$lblScript.AutoSize = $true
+$topPanel.Controls.Add($lblScript)
 
-# 中部:配置勾选(普通 CheckBox,绝对坐标手动布局,一次容纳全部)
+$radioMaker = New-Object System.Windows.Forms.RadioButton
+$radioMaker.Text = '常规版 (tiny11maker)'
+$radioMaker.AutoSize = $true
+$radioMaker.Margin = New-Object System.Windows.Forms.Padding(20, 0, 0, 0)
+$topPanel.Controls.Add($radioMaker)
+
+$radioCore = New-Object System.Windows.Forms.RadioButton
+$radioCore.Text = '核心精简版 (tiny11Coremaker)'
+$radioCore.AutoSize = $true
+$radioCore.Margin = New-Object System.Windows.Forms.Padding(20, 0, 0, 0)
+$topPanel.Controls.Add($radioCore)
+
+# 中部:FlowLayoutPanel 垂直自动排列 17 个 checkbox,彻底绕开坐标/尺寸/DPI 问题
+$midPanel = New-Object System.Windows.Forms.FlowLayoutPanel
+$midPanel.Dock = [System.Windows.Forms.DockStyle]::Fill
+$midPanel.FlowDirection = [System.Windows.Forms.FlowDirection]::TopDown
+$midPanel.WrapContents = $false
+$midPanel.AutoScroll = $true
+$midPanel.Padding = New-Object System.Windows.Forms.Padding(20, 10, 20, 0)
+$midPanel.AutoScrollMargin = New-Object System.Drawing.Size(0, 60)
+$form.Controls.Add($midPanel)
+
+# 记录 checkbox 引用
 $checkbox = @{}
 $keyOrder = @($keyLabels.Keys)
-$y = 52
 foreach ($k in $keyOrder) {
     $cb = New-Object System.Windows.Forms.CheckBox
     $cb.Text = $keyLabels[$k]
-    $cb.AutoSize = $false
-    # 宽度按文本实测 + 圆圈/边距,避免 DPI 缩放后文字被横向裁切
-    $textW = [System.Windows.Forms.TextRenderer]::MeasureText($cb.Text, $form.Font).Width
-    $cb.Size = New-Object System.Drawing.Size(($textW + 58), 24)
-    $cb.TextAlign = [System.Drawing.ContentAlignment]::MiddleLeft
-    $cb.Location = New-Object System.Drawing.Point(20, $y)
+    $cb.AutoSize = $true
+    $cb.Margin = New-Object System.Windows.Forms.Padding(0, 2, 0, 4)
     $cb.Checked = $true
-    $form.Controls.Add($cb)
+    $midPanel.Controls.Add($cb)
     $checkbox[$k] = $cb
-    $y += 30
 }
 
-# 底部:操作按钮
+# 底部:FlowLayoutPanel 自动排列按钮
+$bottomPanel = New-Object System.Windows.Forms.FlowLayoutPanel
+$bottomPanel.Dock = [System.Windows.Forms.DockStyle]::Bottom
+$bottomPanel.Height = 60
+$bottomPanel.Padding = New-Object System.Windows.Forms.Padding(12, 12, 12, 10)
+$form.Controls.Add($bottomPanel)
+
 $btnSave = New-Object System.Windows.Forms.Button
 $btnSave.Text = '保存配置'
 $btnSave.Size = New-Object System.Drawing.Size(110, 32)
-$btnSave.Location = New-Object System.Drawing.Point(20, ($y + 14))
-$form.Controls.Add($btnSave)
+$btnSave.Margin = New-Object System.Windows.Forms.Padding(0, 0, 10, 0)
+$bottomPanel.Controls.Add($btnSave)
 
 $btnBuild = New-Object System.Windows.Forms.Button
 $btnBuild.Text = '保存并启动构建'
 $btnBuild.Size = New-Object System.Drawing.Size(140, 32)
-$btnBuild.Location = New-Object System.Drawing.Point(140, ($y + 14))
-$form.Controls.Add($btnBuild)
+$btnBuild.Margin = New-Object System.Windows.Forms.Padding(0, 0, 20, 0)
+$bottomPanel.Controls.Add($btnBuild)
 
 $tip = New-Object System.Windows.Forms.Label
 $tip.Text = '提示:构建脚本会自动提权到新的管理员窗口,实时日志将在那里显示。'
-$tip.Size = New-Object System.Drawing.Size(260, 16)
-$tip.AutoSize = $false
+$tip.AutoSize = $true
 $tip.ForeColor = [System.Drawing.Color]::Gray
-$tip.Location = New-Object System.Drawing.Point(292, 22)
-$form.Controls.Add($tip)
+$bottomPanel.Controls.Add($tip)
 
 #---------[ 行为 ]---------
 $btnSave.Add_Click({
