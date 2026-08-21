@@ -82,6 +82,32 @@ C:/你的脚本路径/script.ps1 -ISO 挂载盘盘符 -SCRATCH 临时盘盘符
 - **资讯/辅助**：Bing 新闻/搜索/天气、获取帮助（GetHelp）、入门（GetStarted）、反馈中心（Feedback Hub）、跨设备（CrossDevice）
 - **系统相关**：Windows 邮件与应用（communicationsapps）、Windows Terminal、MSPaint 等
 
+### config.json 配置项说明
+
+| 键 | 说明 | 适用脚本 |
+| --- | --- | --- |
+| `apps` | 移除预装应用（见上方清单） | 两个版本 |
+| `edge` | 移除 Edge 及残留 | 两个版本 |
+| `onedrive` | 移除 OneDrive 及禁用备份 | 两个版本 |
+| `systemPackages` | 移除系统包 | 仅核心版 |
+| `winre` | 移除恢复环境 WinRE | 仅核心版 |
+| `trimWinSxS` | 精简 WinSxS 组件库 | 仅核心版 |
+| `disableUpdates` | 禁用 Windows 更新 | 仅核心版 |
+| `bypassRequirements` | 绕过硬件系统要求 | 两个版本 |
+| `disableSponsoredApps` | 禁用推广应用 | 两个版本 |
+| `disableTelemetry` | 禁用遥测 | 两个版本 |
+| `localAccount` | 启用 OOBE 本地账户（绕过微软登录） | 两个版本 |
+| `disableReserves` | 禁用保留空间 | 两个版本 |
+| `disableBitLocker` | 禁用 BitLocker 设备加密 | 两个版本 |
+| `disableChat` | 禁用任务栏聊天图标 | 两个版本 |
+| `disableCopilot` | 禁用 Copilot | 两个版本 |
+| `blockWebApps` | 阻止 Teams/Outlook/DevHome 自动重装 | 两个版本 |
+| `deleteTelemetryTasks` | 删除遥测相关计划任务 | 两个版本 |
+
+> 
+> 所有键默认值为 `true`（执行全部精简项）。设为 `false` 可保留相应组件。
+> 核心版（core）独有 4 项（`systemPackages`/`winre`/`trimWinSxS`/`disableUpdates`），常规版运行时会被忽略。
+
 > 
 > 注意：**tiny11 core 制作完成后无法恢复被删除的系统功能！**
 > 构建镜像过程中会询问你是否开启 .NET 3.5 支持。

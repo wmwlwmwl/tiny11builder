@@ -111,6 +111,31 @@ You will be asked during image creation if you want to enable .net 3.5 support!
 - **News/assist**: Bing News/Search/Weather, GetHelp, GetStarted, Feedback Hub, CrossDevice
 - **System-related**: Windows Mail & Calendar (communicationsapps), Windows Terminal, MSPaint, etc.
 
+**`config.json` options:**
+
+| Key | Description | Applies to |
+| --- | --- | --- |
+| `apps` | Remove preinstalled apps (see list above) | both |
+| `edge` | Remove Edge and its remnants | both |
+| `onedrive` | Remove OneDrive and disable backup | both |
+| `systemPackages` | Remove system packages | core only |
+| `winre` | Remove WinRE recovery environment | core only |
+| `trimWinSxS` | Trim WinSxS component store | core only |
+| `disableUpdates` | Disable Windows Update | core only |
+| `bypassRequirements` | Bypass hardware requirements | both |
+| `disableSponsoredApps` | Disable sponsored apps | both |
+| `disableTelemetry` | Disable telemetry | both |
+| `localAccount` | Enable OOBE local account (skip MS login) | both |
+| `disableReserves` | Disable reserved storage | both |
+| `disableBitLocker` | Disable BitLocker device encryption | both |
+| `disableChat` | Disable taskbar chat icon | both |
+| `disableCopilot` | Disable Copilot | both |
+| `blockWebApps` | Block Teams/Outlook/DevHome reinstalls | both |
+| `deleteTelemetryTasks` | Delete telemetry scheduled tasks | both |
+
+> All keys default to `true` (run every trimming step); set to `false` to keep a component.
+> The 4 core-only keys (`systemPackages`/`winre`/`trimWinSxS`/`disableUpdates`) are ignored when running the regular script.
+
 ---
 
 ## Known issues:
