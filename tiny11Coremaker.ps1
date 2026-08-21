@@ -135,17 +135,18 @@ else { Write-Host "输入无效,请输入 y 或 n。" }
 }
 if ($config.edge) {
 Write-Host "正在移除 Edge:"
-Remove-Item -Path "$mainOSDrive\scratchdir\Program Files (x86)\Microsoft\Edge" -Recurse -Force > $null
-Remove-Item -Path "$mainOSDrive\scratchdir\Program Files (x86)\Microsoft\EdgeUpdate" -Recurse -Force > $null
-Remove-Item -Path "$mainOSDrive\scratchdir\Program Files (x86)\Microsoft\EdgeCore" -Recurse -Force > $null
+# ponytail: WebView 目录内的文件带硬链接保护,个别文件删不掉属正常,失败即跳过,避免中断后续构建。
+Remove-Item -Path "$mainOSDrive\scratchdir\Program Files (x86)\Microsoft\Edge" -Recurse -Force -ErrorAction SilentlyContinue > $null
+Remove-Item -Path "$mainOSDrive\scratchdir\Program Files (x86)\Microsoft\EdgeUpdate" -Recurse -Force -ErrorAction SilentlyContinue > $null
+Remove-Item -Path "$mainOSDrive\scratchdir\Program Files (x86)\Microsoft\EdgeCore" -Recurse -Force -ErrorAction SilentlyContinue > $null
 if ($architecture -eq 'amd64') { $folderPath = Get-ChildItem -Path "$mainOSDrive\scratchdir\Windows\WinSxS" -Filter "amd64_microsoft-edge-webview_31bf3856ad364e35*" -Directory | Select-Object -ExpandProperty FullName }
 elseif ($architecture -eq 'arm64') { $folderPath = Get-ChildItem -Path "$mainOSDrive\scratchdir\Windows\WinSxS" -Filter "arm64_microsoft-edge-webview_31bf3856ad364e35*" -Directory | Select-Object -ExpandProperty FullName }
 else { $folderPath = $null; Write-Host "无法识别的架构: $architecture" }
-if ($folderPath) { & 'takeown' '/f' $folderPath '/r' > $null; & icacls $folderPath "/grant" "$($adminGroup.Value):(F)" '/T' '/C' > $null; Remove-Item -Path $folderPath -Recurse -Force > $null }
+if ($folderPath) { & 'takeown' '/f' $folderPath '/r' > $null; & icacls $folderPath "/grant" "$($adminGroup.Value):(F)" '/T' '/C' > $null; try { Remove-Item -Path $folderPath -Recurse -Force -ErrorAction Stop } catch { Write-Warning "WinSxS 中部分 Edge WebView 文件无法删除(硬链接保护),已跳过,不影响精简结果。" } }
 else { Write-Host "未找到 Edge WebView 文件夹。" }
-& 'takeown' '/f' "$mainOSDrive\scratchdir\Windows\System32\Microsoft-Edge-Webview" '/r'
-& 'icacls' "$mainOSDrive\scratchdir\Windows\System32\Microsoft-Edge-Webview" '/grant' "$($adminGroup.Value):(F)" '/T' '/C'
-Remove-Item -Path "$mainOSDrive\scratchdir\Windows\System32\Microsoft-Edge-Webview" -Recurse -Force
+& 'takeown' '/f' "$mainOSDrive\scratchdir\Windows\System32\Microsoft-Edge-Webview" '/r' > $null
+& 'icacls' "$mainOSDrive\scratchdir\Windows\System32\Microsoft-Edge-Webview" '/grant' "$($adminGroup.Value):(F)" '/T' '/C' > $null
+try { Remove-Item -Path "$mainOSDrive\scratchdir\Windows\System32\Microsoft-Edge-Webview" -Recurse -Force -ErrorAction Stop } catch { Write-Warning "System32 中部分 Edge WebView 文件无法删除,已跳过。" }
 }
 if ($config.winre) {
 Write-Host "正在移除 WinRE..."
