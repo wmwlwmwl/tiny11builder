@@ -17,19 +17,18 @@
 Add-Type -AssemblyName System.Windows.Forms
 Add-Type -AssemblyName System.Drawing
 
-# 高分辨率(DPI>100%)下若不感知缩放,WinForms 控件行高/布局会被错误裁切
-# (症状:勾选框只显示一半、首项不可见)。这里在创建任何窗口前声明 PerMonitorV2 感知。
-# PS 5.1 无 Application.SetHighDpiMode(.NET Core API),故用 P/Invoke。
+# 缩放屏上若不先声明 DPI 感知,.NET Framework 的 WinForms 会被系统虚拟化缩放,
+# 再叠加 AutoScaleMode(Font 缩放)导致控件坐标/尺寸错乱(勾选框折返、文字裁切)。
+# PS 5.1 无 .NET Core 的 SetHighDpiMode,这里用最兼容的 user32 SetProcessDPIAware(进程级)。
 Add-Type -TypeDefinition @'
 using System;
 using System.Runtime.InteropServices;
 public static class DpiFix {
     [DllImport("user32.dll")]
-    public static extern bool SetProcessDpiAwarenessContext(IntPtr dpiAwarenessContext);
+    public static extern bool SetProcessDPIAware();
 }
 '@
-# -4 = PROCESS_PER_MONITOR_DPI_AWARE_V2
-[DpiFix]::SetProcessDpiAwarenessContext([IntPtr]::new(-4)) | Out-Null
+[DpiFix]::SetProcessDPIAware() | Out-Null
 
 $root = $PSScriptRoot
 $configPath = Join-Path $root 'config.json'
@@ -74,8 +73,8 @@ function Read-Config {
 
 function Save-Config {
     $cfg = [ordered]@{}
-    for ($i = 0; $i -lt $keyOrder.Count; $i++) {
-        $cfg[$keyOrder[$i]] = $list.Items[$i].Checked
+    foreach ($k in $keyOrder) {
+        $cfg[$k] = $checkbox[$k].Checked
     }
     try {
         [System.IO.File]::WriteAllText($configPath, ($cfg | ConvertTo-Json), [System.Text.UTF8Encoding]::new($false))
@@ -89,81 +88,67 @@ function Save-Config {
 #---------[ 界面 ]---------
 $form = New-Object System.Windows.Forms.Form
 $form.Text = 'tiny11 builder 图形界面'
-$form.Size = New-Object System.Drawing.Size(600, 700)
+# AutoScaleMode=None:控件按脚本里写入的绝对像素坐标渲染,
+# 不参与 Font 自动缩放,杜绝 DPI 换算造成的坐标/尺寸错乱。
+$form.AutoScaleMode = [System.Windows.Forms.AutoScaleMode]::None
+$form.Size = New-Object System.Drawing.Size(560, 780)
 $form.StartPosition = [System.Windows.Forms.FormStartPosition]::CenterScreen
-$form.MinimumSize = New-Object System.Drawing.Size(520, 520)
+$form.MinimumSize = New-Object System.Drawing.Size(540, 780)
 
 # 顶部:构建脚本选择
-$topPanel = New-Object System.Windows.Forms.Panel
-$topPanel.Dock = [System.Windows.Forms.DockStyle]::Top
-$topPanel.Height = 46
-$form.Controls.Add($topPanel)
-
-$lblScript = New-Object System.Windows.Forms.Label
-$lblScript.Text = '构建脚本:'
-$lblScript.AutoSize = $true
-$lblScript.Location = New-Object System.Drawing.Point(12, 15)
-$topPanel.Controls.Add($lblScript)
-
 $radioMaker = New-Object System.Windows.Forms.RadioButton
 $radioMaker.Text = '常规版 (tiny11maker)'
 $radioMaker.AutoSize = $true
-$radioMaker.Location = New-Object System.Drawing.Point(90, 13)
-$topPanel.Controls.Add($radioMaker)
+$radioMaker.Location = New-Object System.Drawing.Point(92, 15)
+$form.Controls.Add($radioMaker)
 
 $radioCore = New-Object System.Windows.Forms.RadioButton
 $radioCore.Text = '核心精简版 (tiny11Coremaker)'
 $radioCore.AutoSize = $true
-$radioCore.Location = New-Object System.Drawing.Point(230, 13)
-$topPanel.Controls.Add($radioCore)
+$radioCore.Location = New-Object System.Drawing.Point(232, 15)
+$form.Controls.Add($radioCore)
 
-# 中部:配置勾选(ListView 勾选框与文字同单元格,高 DPI 下不会被拆分裁切)
-$list = New-Object System.Windows.Forms.ListView
-$list.View = [System.Windows.Forms.View]::List
-$list.CheckBoxes = $true
-$list.FullRowSelect = $false
-$list.MultiSelect = $false
-$list.BorderStyle = [System.Windows.Forms.BorderStyle]::None
-$list.Font = New-Object System.Drawing.Font('Segoe UI', 9)
-$list.Dock = [System.Windows.Forms.DockStyle]::Fill
+$lblScript = New-Object System.Windows.Forms.Label
+$lblScript.Text = '构建脚本:'
+$lblScript.AutoSize = $true
+$lblScript.Location = New-Object System.Drawing.Point(12, 16)
+$form.Controls.Add($lblScript)
 
-# ListView 默认 List 视图宽度依最长文本,但高 DPI 下可能不足。设一个足够宽的列兜底。
-$col = $list.Columns.Add('配置项', 560)
-
-# 记录 索引 -> 配置键 的对应关系
+# 中部:配置勾选(普通 CheckBox,绝对坐标手动布局,一次容纳全部)
+$checkbox = @{}
 $keyOrder = @($keyLabels.Keys)
+$y = 52
 foreach ($k in $keyOrder) {
-    $item = New-Object System.Windows.Forms.ListViewItem($keyLabels[$k])
-    $item.Checked = $true
-    [void]$list.Items.Add($item)
+    $cb = New-Object System.Windows.Forms.CheckBox
+    $cb.Text = $keyLabels[$k]
+    $cb.AutoSize = $true
+    $cb.Location = New-Object System.Drawing.Point(20, $y)
+    $cb.Checked = $true
+    $form.Controls.Add($cb)
+    $checkbox[$k] = $cb
+    $y += 30
 }
 
 # 底部:操作按钮
-$bottomPanel = New-Object System.Windows.Forms.Panel
-$bottomPanel.Dock = [System.Windows.Forms.DockStyle]::Bottom
-$bottomPanel.Height = 60
-$form.Controls.Add($bottomPanel)
-$form.Controls.Add($list)
-
 $btnSave = New-Object System.Windows.Forms.Button
 $btnSave.Text = '保存配置'
 $btnSave.Size = New-Object System.Drawing.Size(110, 32)
-$btnSave.Location = New-Object System.Drawing.Point(12, 12)
-$bottomPanel.Controls.Add($btnSave)
+$btnSave.Location = New-Object System.Drawing.Point(20, $y + 14)
+$form.Controls.Add($btnSave)
 
 $btnBuild = New-Object System.Windows.Forms.Button
 $btnBuild.Text = '保存并启动构建'
 $btnBuild.Size = New-Object System.Drawing.Size(140, 32)
-$btnBuild.Location = New-Object System.Drawing.Point(132, 12)
-$bottomPanel.Controls.Add($btnBuild)
+$btnBuild.Location = New-Object System.Drawing.Point(140, $y + 14)
+$form.Controls.Add($btnBuild)
 
 $tip = New-Object System.Windows.Forms.Label
 $tip.Text = '提示:构建脚本会自动提权到新的管理员窗口,实时日志将在那里显示。'
-$tip.Size = New-Object System.Drawing.Size(300, 16)
+$tip.Size = New-Object System.Drawing.Size(260, 16)
 $tip.AutoSize = $false
 $tip.ForeColor = [System.Drawing.Color]::Gray
-$tip.Location = New-Object System.Drawing.Point(290, 20)
-$bottomPanel.Controls.Add($tip)
+$tip.Location = New-Object System.Drawing.Point(292, 22)
+$form.Controls.Add($tip)
 
 #---------[ 行为 ]---------
 $btnSave.Add_Click({
@@ -203,8 +188,8 @@ $btnBuild.Add_Click({
 
 $form.Add_Shown({
     $cfg = Read-Config
-    for ($i = 0; $i -lt $keyOrder.Count; $i++) {
-        $list.Items[$i].Checked = $cfg[$keyOrder[$i]]
+    foreach ($k in $keyOrder) {
+        $checkbox[$k].Checked = $cfg[$k]
     }
 })
 
